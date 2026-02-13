@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Valentine's Adventure</title>
+    <link rel="stylesheet" href="style.css">
+    <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Quicksand:wght@500;700&display=swap" rel="stylesheet">
+</head>
+<body>
+
+    <section id="scene-loading" class="scene active" style="background-image: url('loadingscreen.jpg');">
+        <div class="glass-panel center-content">
+            <h1 class="retro-text heartbeat">LOVE LOADING...</h1>
+            <div class="loading-bar-container">
+                <div id="loading-bar" class="loading-bar"></div>
+            </div>
+            <p id="loading-text">Pixel werden poliert...</p>
+            <button id="start-btn" class="retro-btn hidden">START ADVENTURE</button>
+        </div>
+    </section>
+
+    <section id="scene-level1" class="scene" style="background-image: url('background1.jpg');">
+        <div class="top-bar glass-panel">
+            <span>Level 1: RISE</span>
+            <span>Herzen: <span id="heart-count">0</span>/5</span>
+        </div>
+        
+        <div id="hearts-container"></div>
+
+        <div id="msg-popup" class="glass-panel popup hidden">
+            <p id="popup-text"></p>
+        </div>
+    </section>
+
+    <section id="scene-level2" class="scene" style="background-image: url('background2.jpg');">
+        <div class="glass-panel quiz-container">
+            <h2>Level 2: SHINE</h2>
+            <div id="quiz-box">
+                <p id="question-text" class="question">Lade Frage...</p>
+                <div id="answers-box" class="answers-grid"></div>
+            </div>
+            <p id="feedback-text"></p>
+        </div>
+    </section>
+
+    <section id="scene-end" class="scene" style="background-image: url('background2.jpg');">
+        <div class="glass-panel center-content">
+            <h1 class="retro-text">GESCHAFFT!</h1>
+            <p>Du bist mein Player 1.</p>
+            <p>Happy Valentine's Day! ❤️</p>
+            <button id="replay-btn" class="retro-btn">Nochmal spielen</button>
+        </div>
+    </section>
+
+    <script src="script.js"></script>
+</body>
+</html>

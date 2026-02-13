@@ -1,0 +1,181 @@
+/* Grundlegende Variablen & Reset */
+:root {
+    --primary: #ff4d6d;
+    --glass-bg: rgba(255, 255, 255, 0.25);
+    --glass-border: rgba(255, 255, 255, 0.4);
+    --text-color: #fff;
+    --dark-overlay: rgba(0, 0, 0, 0.3);
+}
+
+* {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+    -webkit-tap-highlight-color: transparent; /* Entfernt blaues Highlight auf iOS */
+}
+
+body {
+    font-family: 'Quicksand', sans-serif; /* Lesbare Schrift für Texte */
+    overflow: hidden; /* Verhindert Scrollen */
+    height: 100vh;
+    width: 100vw;
+    background-color: #000;
+}
+
+/* Szenen-Management */
+.scene {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-size: cover;
+    background-position: center;
+    display: none; /* Standardmäßig ausgeblendet */
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    transition: opacity 0.5s ease;
+}
+
+.scene.active {
+    display: flex;
+    animation: fadeIn 1s;
+}
+
+/* Glassmorphism Design */
+.glass-panel {
+    background: var(--glass-bg);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px); /* Safari Support */
+    border: 1px solid var(--glass-border);
+    border-radius: 20px;
+    padding: 20px;
+    text-align: center;
+    color: white;
+    box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.37);
+    max-width: 90%;
+}
+
+/* Retro Elemente */
+.retro-text {
+    font-family: 'Press Start 2P', cursive;
+    text-shadow: 2px 2px #ff0055;
+    margin-bottom: 20px;
+    line-height: 1.5;
+    font-size: 1.2rem;
+}
+
+.retro-btn {
+    background: var(--primary);
+    border: 2px solid white;
+    color: white;
+    padding: 15px 30px;
+    font-family: 'Press Start 2P', cursive;
+    font-size: 1rem;
+    cursor: pointer;
+    border-radius: 10px;
+    transition: transform 0.1s;
+    margin-top: 20px;
+}
+
+.retro-btn:active {
+    transform: scale(0.95);
+}
+
+/* Loading Screen Animationen */
+.loading-bar-container {
+    width: 200px;
+    height: 20px;
+    border: 2px solid white;
+    border-radius: 10px;
+    margin: 20px auto;
+    overflow: hidden;
+}
+
+.loading-bar {
+    height: 100%;
+    width: 0%;
+    background: var(--primary);
+    transition: width 0.3s;
+}
+
+.heartbeat {
+    animation: heartBeatAnim 1.5s infinite;
+}
+
+@keyframes heartBeatAnim {
+    0% { transform: scale(1); }
+    50% { transform: scale(1.1); }
+    100% { transform: scale(1); }
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+
+/* Level 1: Herzen */
+.heart-item {
+    position: absolute;
+    font-size: 3rem;
+    cursor: pointer;
+    animation: float 3s ease-in-out infinite;
+    filter: drop-shadow(0 0 10px rgba(255,255,255,0.5));
+    transition: transform 0.2s;
+}
+
+.heart-item:active {
+    transform: scale(1.5) rotate(10deg);
+}
+
+@keyframes float {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(-20px); }
+}
+
+.popup {
+    position: absolute;
+    bottom: 20%;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 80%;
+    z-index: 100;
+}
+
+/* Level 2: Quiz */
+.answers-grid {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 10px;
+    margin-top: 20px;
+}
+
+.answer-btn {
+    background: rgba(255,255,255,0.3);
+    border: 1px solid white;
+    padding: 10px;
+    border-radius: 10px;
+    color: white;
+    font-family: 'Quicksand', sans-serif;
+    font-weight: bold;
+    cursor: pointer;
+}
+
+/* Animation bei falscher Antwort */
+.shake {
+    animation: shake 0.5s;
+    background: rgba(255, 0, 0, 0.4);
+}
+
+@keyframes shake {
+    0% { transform: translateX(0); }
+    25% { transform: translateX(-10px); }
+    50% { transform: translateX(10px); }
+    75% { transform: translateX(-10px); }
+    100% { transform: translateX(0); }
+}
+
+/* Helper Classes */
+.hidden { display: none; }
+.center-content { display: flex; flex-direction: column; align-items: center; }
