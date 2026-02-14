@@ -1,9 +1,9 @@
 /* --- CONFIGURATION --- */
 const loveQuotes = [
     "Du bringst mich zum Lächeln!",
-    "Mein Herz schlägt 8-bit für dich!",
-    "Player 1 & Player 2 forever!",
-    "Du bist mein Loot!",
+    "Mein Herz schlägt nach Abenteuer!",
+    "Wenn du da bist, ist alles gut!",
+    "Jeden Tag denk ich an dich!",
     "Level Up with you!"
 ];
 
@@ -12,13 +12,13 @@ const memoryIcons = ['🌹', '🍫', '🧸', '💍', '🍕', '🐱'];
 
 // Quiz Fragen (Level 2)
 const quizData = [
-    { question: "Wo war unser erstes Date?", answers: ["Kino", "Restaurant", "Mond"], correct: 1, wrongMsg: "Fast... denk an das Essen!" },
-    { question: "Was liebe ich an dir am meisten?", answers: ["Alles", "Deine Augen", "Dein Lachen"], correct: 0, wrongMsg: "Alles ist die einzig richtige Antwort! ;)" },
-    { question: "Wer ist der bessere Koch?", answers: ["Ich", "Du", "Der Lieferdienst"], correct: 1, wrongMsg: "Schön wär's! 😂" }
+    { question: "Wo war unser erster Kuss?", answers: ["Kino", "Restaurant", "Münster"], correct: 2, wrongMsg: "Fast... denk an Herbst!" },
+    { question: "Was liebe ich an dir am meisten?", answers: ["Deine Augen", "Alles!", "Dein Lachen"], correct: 1, wrongMsg: "Alles ist die einzig richtige Antwort! ;)" },
+    { question: "Wer ist der bessere Sportler?", answers: ["Ich", "Du", "Der Lieferdienst"], correct: 0, wrongMsg: "Schön wär's! 😂" }
 ];
 
 // Der Brief am Ende (Passe dies an!)
-const finalLetterText = "Mein Schatz, ich wollte dir auf diesem Weg sagen, wie sehr ich dich liebe. Danke, dass du jeden Tag besonders machst. Happy Valentine! Dein Nerd ❤️";
+const finalLetterText = "Louisa, jetzte sind scho es par Mönet verbii gange und es isch so viel passiert, aber öpis isch immer bliibe und das wird nümme weg goh. Au wenn es sich kitschig ahört, muess ich es trotzdem sage. Ich hann dich ganz fest unednlich liän und das wird sich nid ändere. Und ich will das scih au nid änderet, well ich will mit dir die Welt erkunde und mini Träum verwürkliche. Das schaff ich numme mit dir, elei wird es schweirig. Ich bin do für dich und au wenn es nid als Person goht, aber immer im Herze. Ha di ganz fest liääb! Andrin ❤️";
 
 /* --- STATE MANAGEMENT --- */
 let collectedHearts = 0;
@@ -132,7 +132,7 @@ window.onload = () => {
     const interval = setInterval(() => {
         if (width >= 100) {
             clearInterval(interval);
-            loadingText.innerText = "Bereit für Liebe!";
+            loadingText.innerText = "Bereit? Klicke um zu starten!";
             startBtn.classList.remove('hidden');
         } else {
             width++;
