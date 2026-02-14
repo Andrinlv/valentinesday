@@ -18,7 +18,7 @@ const quizData = [
 ];
 
 // Der Brief am Ende (Passe dies an!)
-const finalLetterText = "Louisa, jetzte sind scho es par Mönet verbii gange und es isch so viel passiert, aber öpis isch immer bliibe und das wird nümme weg goh. Au wenn es sich kitschig ahört, muess ich es trotzdem sage. Ich hann dich ganz fest unednlich liän und das wird sich nid ändere. Und ich will das scih au nid änderet, well ich will mit dir die Welt erkunde und mini Träum verwürkliche. Das schaff ich numme mit dir, elei wird es schweirig. Ich bin do für dich und au wenn es nid als Person goht, aber immer im Herze. Ha di ganz fest liääb! Andrin ❤️";
+const finalLetterText = "Louisa, jetzte sind scho es par Mönet verbii gange und es isch so viel passiert, aber öpis isch immer bliibe und das wird nümme weg goh. Au wenn es sich kitschig ahört, muess ich es trotzdem sage. Ich hann dich ganz fest unendlich liäb und das wird sich nid ändere. Und ich will das es sich au nid änderet, well ich will mit dir die Welt erkunde und mini/dini Träum verwürkliche. Das schaff ich numme mit dir, elei wird es schweirig. Ich bin do für dich und au wenn es nid als Person goht, aber immer im Herze. Ha di ganz fest liääb! Andrin ❤️";
 
 /* --- STATE MANAGEMENT --- */
 let collectedHearts = 0;
