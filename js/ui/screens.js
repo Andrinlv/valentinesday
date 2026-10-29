@@ -8,6 +8,7 @@
   const PRELOAD_IMAGES = ['assets/img/background1.jpg', 'assets/img/background2.jpg', 'assets/img/loadingscreen.jpg'];
   const MIN_LOADING_MS = 1600;
   const FONT_TIMEOUT_MS = 2500;
+  const BOOT_FONTS = ['16px "Press Start 2P"', '600 16px "Quicksand"', '700 32px "Caveat"'];
   const SECRET_CLICKS = 5;
   const INTRO_BACKDROPS = ['ruins', 'castle', 'coast', 'ruins', 'coast'];
   const TYPE_SPEED = 38; // characters per second
@@ -30,8 +31,7 @@
         };
         image.src = src;
       }
-      const fontsReady = document.fonts && document.fonts.ready ? document.fonts.ready : Promise.resolve();
-      Promise.race([fontsReady, new Promise((done) => setTimeout(done, FONT_TIMEOUT_MS))]).then(markLoaded, markLoaded);
+      U.whenFontsReady(BOOT_FONTS, FONT_TIMEOUT_MS).then(markLoaded, markLoaded);
 
       const step = (now) => {
         if (scope.disposed) return;
@@ -153,7 +153,7 @@
         const start = () => {
           if (starting) return;
           starting = true;
-          const name = nameInput.value.trim().slice(0, 16) || LQ.content.heroName;
+          const name = U.truncate(nameInput.value.trim(), 16) || LQ.content.heroName;
           save.hero = { name, avatar: selected, chosen: true };
           LQ.store.save();
           LQ.audio.play('powerup');
@@ -214,6 +214,8 @@
 
         let index = -1;
         let full = '';
+        let chars = [];
+        let shown = '';
         let typed = 0;
         let typing = false;
         let finished = false;
@@ -229,6 +231,8 @@
         function showLine(lineIndex) {
           index = lineIndex;
           full = lines[index];
+          chars = U.graphemes(full);
+          shown = '';
           typed = 0;
           typing = true;
           textEl.textContent = '';
@@ -274,14 +278,15 @@
           if (!typing) return;
           typeBudget += dt * TYPE_SPEED;
           let changed = false;
-          while (typeBudget >= 1 && typed < full.length) {
+          while (typeBudget >= 1 && typed < chars.length) {
             typeBudget -= 1;
-            typed++;
+            const char = chars[typed++];
+            shown += char;
             changed = true;
-            if (typed % 3 === 0 && full[typed - 1] !== ' ') LQ.audio.play('type');
+            if (typed % 3 === 0 && char.trim()) LQ.audio.play('type');
           }
-          if (changed) textEl.textContent = full.slice(0, typed);
-          if (typed >= full.length) typing = false;
+          if (changed) textEl.textContent = shown;
+          if (typed >= chars.length) typing = false;
         }).start();
 
         showLine(0);

@@ -52,11 +52,18 @@
       state.paused = true;
       state.pauseHandlers.forEach((handler) => handler());
       LQ.audio.play('click');
-      LQ.ui.menus.openPause({
+      state.pauseDialog = LQ.ui.menus.openPause({
         onResume: () => app.resume(),
         onRestart: () => app.startLevel(state.levelId),
         onQuit: () => app.showMap()
       });
+    },
+
+    /** Opens the pause menu, or closes it again (= resume) when it is showing. */
+    togglePause() {
+      const state = session;
+      if (state && state.paused && state.pauseDialog && state.pauseDialog.isOpen) state.pauseDialog.close('toggle');
+      else app.pause();
     },
 
     resume() {
@@ -229,6 +236,10 @@
 
       pause() {
         app.pause();
+      },
+
+      togglePause() {
+        app.togglePause();
       }
     };
   }
@@ -261,6 +272,7 @@
       pauseHandlers: new Set(),
       resumeHandlers: new Set(),
       banner: null,
+      pauseDialog: null,
       instance: null
     };
     session = state;
@@ -289,6 +301,12 @@
     }
   }
 
+  /** What the map shows: hero, trial progress, tokens and coupons (settings and play time are left out). */
+  function progressSnapshot() {
+    const save = LQ.store.data;
+    return JSON.stringify([save.hero, save.introSeen, save.levels, save.tokens, save.coupons, save.finalCoupon, save.achievements]);
+  }
+
   function wireGlobalListeners() {
     /* Browsers only allow audio after a user gesture; on touch screens that is pointerup/touchend. */
     const unlockAudio = () => LQ.audio.unlock();
@@ -296,17 +314,25 @@
       document.addEventListener(type, unlockAudio, { passive: true });
     }
 
+    /* A trial that is still fading in cannot pause yet: keep trying until it can (or the tab returns). */
+    let pauseRetry = 0;
+    const pauseWhileHidden = () => {
+      clearTimeout(pauseRetry);
+      if (!document.hidden) return;
+      app.pause();
+      if (LQ.ui.scenes.transitioning) pauseRetry = setTimeout(pauseWhileHidden, 250);
+    };
     document.addEventListener('visibilitychange', () => {
-      if (document.hidden) {
-        app.pause();
-        LQ.store.save();
-      }
+      if (!document.hidden) return;
+      pauseWhileHidden();
+      LQ.store.save();
     });
     window.addEventListener('pagehide', () => LQ.store.save());
 
     /* Another tab saved newer progress: adopt it so this tab never overwrites it with stale data. */
     window.addEventListener('storage', (event) => {
       if (event.key !== LQ.store.KEY || event.storageArea !== globalThis.localStorage) return;
+      const before = progressSnapshot();
       LQ.store.load();
       const lang = LQ.store.data.settings.lang || LQ.content.language;
       if (lang !== LQ.i18n.lang) {
@@ -315,7 +341,11 @@
       }
       app.applySettings();
       LQ.events.emit('progress');
-      if (LQ.ui.scenes.current === 'map' && !LQ.ui.modal.isOpen()) LQ.ui.scenes.show('map', {}, { transition: false });
+      /* Redraw the map for new progress, but never yank away a dialog or a running transition. */
+      const changed = progressSnapshot() !== before;
+      if (changed && LQ.ui.scenes.current === 'map' && !LQ.ui.modal.isOpen() && !LQ.ui.scenes.transitioning) {
+        LQ.ui.scenes.show('map', {}, { transition: false });
+      }
     });
 
     document.getElementById('hud-pause').addEventListener('click', () => app.pause());
@@ -330,7 +360,8 @@
         app.updateSetting('crt', true);
         LQ.fx.confetti(80);
       }
-      if ((event.code === 'Escape' || event.code === 'KeyP') && LQ.ui.scenes.current === 'game' && !LQ.ui.modal.isOpen()) {
+      if ((event.code === 'Escape' || event.code === 'KeyP') && !event.repeat &&
+        LQ.ui.scenes.current === 'game' && !LQ.ui.modal.isOpen()) {
         const target = event.target;
         if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA')) return;
         event.preventDefault();

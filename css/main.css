@@ -1451,6 +1451,7 @@ input:focus-visible {
   font-size: 1.6rem;
   line-height: 1.35;
   font-weight: 500;
+  white-space: pre-line;
 }
 
 .letter-paper__signature {
@@ -1464,6 +1465,7 @@ input:focus-visible {
 
 .letter-piece--hidden {
   display: inline-block;
+  max-width: calc(100% - 4px);
   height: 0.85em;
   margin: 0 2px;
   vertical-align: middle;
@@ -1846,11 +1848,15 @@ input:focus-visible {
 
 .float-text {
   position: absolute;
+  width: max-content;
+  max-width: calc(100vw - 12px);
   font-family: var(--font-pixel);
   font-size: 0.8rem;
+  line-height: 1.4;
+  text-align: center;
   color: var(--cream);
   text-shadow: 2px 2px 0 var(--rose-deep);
-  white-space: nowrap;
+  white-space: normal;
   will-change: transform, opacity;
 }
 

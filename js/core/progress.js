@@ -105,14 +105,19 @@
       return LEVELS.filter((level) => save().levels[level.id].completed).length;
     },
 
-    /** The final letter split into LETTER_PIECES chunks of roughly equal word count. */
-    letterChunks() {
-      const words = LQ.content.finalLetter.split(/\s+/).filter(Boolean);
+    /**
+     * The letter split into LETTER_PIECES consecutive chunks of roughly equal size. Joined they give back
+     * the exact text, line breaks included. Letters with fewer words than pieces are split by character,
+     * so every piece still reveals something.
+     */
+    letterChunks(letter = LQ.content.finalLetter) {
+      let units = letter.match(/\S+\s*/g) || [];
+      if (units.length < LETTER_PIECES) units = U.graphemes(letter);
       const chunks = [];
       for (let i = 0; i < LETTER_PIECES; i++) {
-        const start = Math.round((i * words.length) / LETTER_PIECES);
-        const end = Math.round(((i + 1) * words.length) / LETTER_PIECES);
-        chunks.push(words.slice(start, end).join(' '));
+        const start = Math.round((i * units.length) / LETTER_PIECES);
+        const end = Math.round(((i + 1) * units.length) / LETTER_PIECES);
+        chunks.push(units.slice(start, end).join(''));
       }
       return chunks;
     },

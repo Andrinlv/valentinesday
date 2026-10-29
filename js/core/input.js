@@ -39,20 +39,27 @@
       swipeDir = null;
     }
 
+    function releaseKeys() {
+      for (let i = held.length - 1; i >= 0; i--) {
+        if (held[i].source.startsWith('key:')) held.splice(i, 1);
+      }
+    }
+
+    /* Keys are tracked even while input is inactive, so a key held through a pause or banner keeps working. */
     scope.on(window, 'keydown', (event) => {
       const dir = KEY_DIRS[event.code];
-      if (!dir || !isActive()) return;
-      event.preventDefault();
+      /* With a modifier this is a shortcut (Cmd+S, Ctrl+W…); macOS would never send its keyup. */
+      if (!dir || event.metaKey || event.ctrlKey || event.altKey) return;
+      if (isActive()) event.preventDefault();
       const source = `key:${event.code}`;
-      /* Auto-repeat re-registers a key that was pressed while input was inactive. */
       if (!event.repeat || !held.some((entry) => entry.source === source)) press(source, dir);
     });
     scope.on(window, 'keyup', (event) => {
-      if (KEY_DIRS[event.code]) release(`key:${event.code}`);
+      /* macOS drops the keyup of every key released while Cmd is down. */
+      if (event.key === 'Meta') releaseKeys();
+      else if (KEY_DIRS[event.code]) release(`key:${event.code}`);
     });
-    scope.on(window, 'blur', () => {
-      held.length = 0;
-    });
+    scope.on(window, 'blur', releaseKeys);
 
     if (options.swipeTarget) {
       const target = options.swipeTarget;
@@ -60,9 +67,20 @@
       scope.on(target, 'pointerdown', (event) => {
         if (!event.isPrimary || !isActive()) return;
         tracking = { id: event.pointerId, x: event.clientX, y: event.clientY };
+        try {
+          /* Keeps the gesture alive when the finger or mouse leaves the target. */
+          target.setPointerCapture(event.pointerId);
+        } catch (err) {
+          /* capture is a nicety, not required */
+        }
       });
       scope.on(target, 'pointermove', (event) => {
         if (!tracking || event.pointerId !== tracking.id || !isActive()) return;
+        /* The button was released somewhere the pointerup never reached us. */
+        if (event.buttons === 0) {
+          tracking = null;
+          return;
+        }
         const dx = event.clientX - tracking.x;
         const dy = event.clientY - tracking.y;
         if (Math.hypot(dx, dy) < SWIPE_THRESHOLD) return;
@@ -76,6 +94,7 @@
       };
       scope.on(target, 'pointerup', end);
       scope.on(target, 'pointercancel', end);
+      scope.on(target, 'lostpointercapture', end);
     }
 
     if (options.pad) {

@@ -18,7 +18,8 @@
     if (event.key === 'Escape') {
       event.preventDefault();
       event.stopPropagation();
-      if (modal.dismissible) modal.close('escape');
+      /* A held Escape must not close the dialog it just opened. */
+      if (modal.dismissible && !event.repeat) modal.close('escape');
       return;
     }
     if (event.key !== 'Tab') return;
@@ -30,10 +31,13 @@
     }
     const first = focusables[0];
     const last = focusables[focusables.length - 1];
-    if (event.shiftKey && (document.activeElement === first || !modal.el.contains(document.activeElement))) {
+    /* The dialog container itself counts as outside: Shift+Tab from it would leave the dialog. */
+    const active = document.activeElement;
+    const inside = active !== modal.el && modal.el.contains(active);
+    if (event.shiftKey && (active === first || !inside)) {
       event.preventDefault();
       last.focus();
-    } else if (!event.shiftKey && (document.activeElement === last || !modal.el.contains(document.activeElement))) {
+    } else if (!event.shiftKey && (active === last || !inside)) {
       event.preventDefault();
       first.focus();
     }

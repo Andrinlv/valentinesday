@@ -17,6 +17,17 @@ test('clamp, lerp and formatTime', () => {
   assert.equal(U.formatTime(600), '10:00');
 });
 
+test('graphemes and truncate keep emoji and accents whole', () => {
+  assert.deepEqual(U.graphemes('a💖b'), ['a', '💖', 'b']);
+  assert.deepEqual(U.graphemes('👩‍❤️‍👨!'), ['👩‍❤️‍👨', '!']);
+  assert.deepEqual(U.graphemes('é'), ['é']);
+  assert.deepEqual(U.graphemes(''), []);
+  assert.equal(U.truncate('hello', 10), 'hello');
+  assert.equal(U.truncate('hello', 2), 'he');
+  assert.equal(U.truncate('💖💖💖', 2), '💖💖');
+  assert.equal(U.truncate('ab👩‍❤️‍👨', 3), 'ab👩‍❤️‍👨');
+});
+
 test('createRng is deterministic and stays in [0, 1)', () => {
   const a = U.createRng(42);
   const b = U.createRng(42);

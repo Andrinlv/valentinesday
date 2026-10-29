@@ -13,6 +13,8 @@
 
   const OPPOSITE = Object.freeze({ up: 'down', down: 'up', left: 'right', right: 'left' });
 
+  let segmenter = null;
+
   function safeCall(fn) {
     try {
       fn();
@@ -159,6 +161,38 @@
     formatNumber(value) {
       const locale = LQ.i18n ? LQ.i18n.locale() : 'en-US';
       return Math.round(value).toLocaleString(locale);
+    },
+
+    /** Splits text into user-perceived characters, so emoji and accents are never cut in half. */
+    graphemes(text) {
+      const value = String(text);
+      if (!segmenter && typeof Intl !== 'undefined' && typeof Intl.Segmenter === 'function') {
+        segmenter = new Intl.Segmenter(undefined, { granularity: 'grapheme' });
+      }
+      return segmenter ? Array.from(segmenter.segment(value), (part) => part.segment) : Array.from(value);
+    },
+
+    /** Shortens text to at most max user-perceived characters. */
+    truncate(text, max) {
+      const value = String(text);
+      return value.length <= max ? value : U.graphemes(value).slice(0, max).join('');
+    },
+
+    /**
+     * Resolves once the given CSS font specs are usable: waits for the non-blocking font stylesheet
+     * (#font-css), then loads the faces. Never takes longer than timeoutMs.
+     */
+    whenFontsReady(specs, timeoutMs) {
+      if (typeof document === 'undefined' || !document.fonts || typeof document.fonts.load !== 'function') {
+        return Promise.resolve();
+      }
+      const link = document.getElementById('font-css');
+      const sheetReady = !link || link.sheet ? Promise.resolve() : new Promise((resolve) => {
+        link.addEventListener('load', resolve, { once: true });
+        link.addEventListener('error', resolve, { once: true });
+      });
+      const loading = sheetReady.then(() => Promise.all(specs.map((spec) => document.fonts.load(spec)))).catch(() => undefined);
+      return Promise.race([loading, new Promise((resolve) => setTimeout(resolve, timeoutMs))]);
     },
 
     prefersReducedMotion() {

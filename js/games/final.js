@@ -17,19 +17,11 @@
     return `${Math.floor(minutes / 60)} h ${String(minutes % 60).padStart(2, '0')} min`;
   }
 
-  function loadFonts() {
-    if (!document.fonts || !document.fonts.load) return Promise.resolve();
-    const loading = Promise.all([
-      document.fonts.load('28px "Press Start 2P"'),
-      document.fonts.load('700 64px "Caveat"'),
-      document.fonts.load('700 26px "Quicksand"')
-    ]).catch(() => undefined);
-    return Promise.race([loading, new Promise((resolve) => setTimeout(resolve, 2500))]);
-  }
+  const CERT_FONTS = ['28px "Press Start 2P"', '700 64px "Caveat"', '700 26px "Quicksand"'];
 
   /** Draws the certificate as a 1200×850 PNG canvas. */
   async function drawCertificate(heroAvatar, heroName) {
-    await loadFonts();
+    await U.whenFontsReady(CERT_FONTS, 2500);
     const t = LQ.t;
     const canvas = document.createElement('canvas');
     canvas.width = CERT_WIDTH;
@@ -144,6 +136,8 @@
     const yesButton = U.el('button', { type: 'button', class: 'btn btn--primary final-yes', text: t('final.yes') });
     const noButton = U.el('button', { type: 'button', class: 'btn btn--ghost final-no', text: LQ.i18n.list('final.noPhrases')[0] });
     const answers = U.el('div', { class: 'final-answers', hidden: true }, [yesButton, noButton]);
+    /* Keeps NO's place in the row once it runs away, so YES never slides under the same tap. */
+    const noSlot = U.el('span', { class: 'final-no-slot', attrs: { 'aria-hidden': 'true' } });
     const title = U.el('h3', { class: 'final-title pixel-title', text: t('final.title') });
     const stage = U.el('div', { class: 'final-stage' }, [title, bubble, couple, answers]);
     const panel = U.el('div', { class: 'final-panel', hidden: true });
@@ -152,7 +146,7 @@
     /* ---------- typewriter (shared by question and letter) ---------- */
 
     function typeInto(element, text, speed, onDone) {
-      state.typingTarget = { element, text, speed };
+      state.typingTarget = { element, text, speed, chars: U.graphemes(text), shown: '' };
       state.typed = 0;
       state.typeBudget = 0;
       state.onTyped = onDone;
@@ -174,14 +168,15 @@
       if (!target) return;
       state.typeBudget += dt * target.speed;
       let changed = false;
-      while (state.typeBudget >= 1 && state.typed < target.text.length) {
+      while (state.typeBudget >= 1 && state.typed < target.chars.length) {
         state.typeBudget -= 1;
-        state.typed++;
+        const char = target.chars[state.typed++];
+        target.shown += char;
         changed = true;
-        if (state.typed % 3 === 0 && target.text[state.typed - 1] !== ' ') audio.play('type');
+        if (state.typed % 3 === 0 && char.trim()) audio.play('type');
       }
-      if (changed) target.element.textContent = target.text.slice(0, state.typed);
-      if (state.typed >= target.text.length) completeTyping();
+      if (changed) target.element.textContent = target.shown;
+      if (state.typed >= target.chars.length) completeTyping();
     }).start();
 
     /* ---------- the question ---------- */
@@ -216,7 +211,7 @@
     }
 
     function dodge(event) {
-      if (state.phase !== 'ask' || noButton.classList.contains('is-yes')) return;
+      if (state.phase !== 'ask' || api.paused || noButton.classList.contains('is-yes')) return;
       if (event && event.cancelable) event.preventDefault();
       const now = performance.now();
       if (now - state.lastDodge < DODGE_DEBOUNCE_MS) return;
@@ -226,12 +221,18 @@
       audio.play('dodge');
       const phrases = LQ.i18n.list('final.noPhrases');
       if (state.noAttempts >= phrases.length) {
+        noSlot.remove();
         noButton.textContent = t('final.yes');
         noButton.classList.remove('btn--ghost', 'is-loose');
         noButton.classList.add('btn--primary', 'is-yes');
         noButton.style.left = '';
         noButton.style.top = '';
       } else {
+        if (!noSlot.isConnected) {
+          noSlot.style.width = `${noButton.offsetWidth}px`;
+          noSlot.style.height = `${noButton.offsetHeight}px`;
+          noButton.before(noSlot);
+        }
         noButton.textContent = phrases[state.noAttempts];
         placeNoButton();
       }
@@ -303,7 +304,8 @@
       ]);
       panel.append(summary);
       summary.scrollIntoView({ behavior: U.prefersReducedMotion() ? 'auto' : 'smooth', block: 'start' });
-      mapButton.focus({ preventScroll: true });
+      summary.tabIndex = -1;
+      summary.focus({ preventScroll: true });
     }
 
     function showLetter() {
@@ -343,7 +345,7 @@
     }
 
     function accept() {
-      if (state.phase !== 'ask') return;
+      if (state.phase !== 'ask' || api.paused) return;
       state.phase = 'celebrate';
       answers.hidden = true;
       questionEl.textContent = t('final.yay');

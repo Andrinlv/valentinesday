@@ -2,6 +2,7 @@
 (function (LQ) {
   'use strict';
 
+  const U = LQ.utils;
   const KEY = 'loveQuest.save.v1';
   const VERSION = 1;
   const LEVEL_IDS = Object.freeze(['catch', 'memory', 'archery', 'quiz', 'maze', 'final']);
@@ -40,7 +41,7 @@
     save.introSeen = toBool(raw.introSeen, false);
 
     if (isObject(raw.hero)) {
-      save.hero.name = typeof raw.hero.name === 'string' ? raw.hero.name.trim().slice(0, 16) : '';
+      save.hero.name = typeof raw.hero.name === 'string' ? U.truncate(raw.hero.name.trim(), 16).trimEnd() : '';
       save.hero.avatar = toInt(raw.hero.avatar, 0, 3, 0);
       save.hero.chosen = toBool(raw.hero.chosen, false);
     }

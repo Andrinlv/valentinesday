@@ -66,14 +66,26 @@ test('memory items are de-duplicated, padded to six and images are detected', ()
 
 test('names, avatar and language are validated', () => {
   let content;
-  captureWarnings(() => {
+  const warnings = captureWarnings(() => {
     content = validate({ language: 'fr', heroName: '   ', belovedName: 'A very long name that keeps on going', belovedAvatar: 7 });
   });
   assert.equal(content.language, 'en');
   assert.equal(content.heroName, 'Valentine');
-  assert.equal(content.belovedName.length, 28);
+  assert.equal(content.belovedName, 'A very long name that keeps');
+  assert.ok(warnings.some((warning) => warning.includes('"belovedName" is longer than 28 characters')));
   assert.equal(content.belovedAvatar, 1);
   assert.equal(validate({ language: 'de', belovedAvatar: 3 }).belovedAvatar, 3);
+});
+
+test('long texts are shortened without splitting an emoji', () => {
+  let content;
+  const warnings = captureWarnings(() => {
+    content = validate({ heroName: 'Honey Bunnyy 💖💖💖💖💖' });
+  });
+  /* 13 letters + 3 hearts = 16 characters; cutting UTF-16 units would leave half a heart behind. */
+  assert.equal(content.heroName, 'Honey Bunnyy 💖💖💖');
+  assert.equal(warnings.length, 1);
+  assert.ok(!/[\uD800-\uDBFF]$/.test(content.heroName));
 });
 
 test('coupons without a title are dropped and icons default', () => {

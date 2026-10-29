@@ -24,6 +24,7 @@
   let rafId = 0;
   let last = 0;
   const toastQueue = [];
+  const visibleToastKeys = new Set();
   let visibleToasts = 0;
 
   const reduced = () => U.prefersReducedMotion();
@@ -196,8 +197,9 @@
   function showNextToast() {
     const limit = window.innerHeight < 640 ? 2 : MAX_TOASTS;
     if (!toastRoot || visibleToasts >= limit || !toastQueue.length) return;
-    const { icon, title, text, duration, tone } = toastQueue.shift();
+    const { icon, title, text, duration, tone, key } = toastQueue.shift();
     visibleToasts++;
+    visibleToastKeys.add(key);
     const node = U.el('div', { class: `toast${tone ? ` toast--${tone}` : ''}`, attrs: { role: 'status' } }, [
       U.el('span', { class: 'toast__icon', text: icon || '✨', attrs: { 'aria-hidden': 'true' } }),
       U.el('div', { class: 'toast__body' }, [
@@ -213,6 +215,7 @@
       setTimeout(() => {
         node.remove();
         visibleToasts--;
+        visibleToastKeys.delete(key);
         showNextToast();
       }, 350);
     }, duration || 3200);
@@ -324,16 +327,17 @@
       animation.oncancel = () => node.remove();
     },
 
+    /* Animates the individual translate property, which adds to the element's own transform (e.g. centring). */
     shake(element, strength) {
       if (!element || reduced() || typeof element.animate !== 'function') return;
       const s = 6 * (strength || 1);
       element.animate([
-        { transform: 'translate(0, 0)' },
-        { transform: `translate(${-s}px, ${s * 0.4}px)` },
-        { transform: `translate(${s * 0.8}px, ${-s * 0.5}px)` },
-        { transform: `translate(${-s * 0.5}px, ${s * 0.3}px)` },
-        { transform: `translate(${s * 0.3}px, 0)` },
-        { transform: 'translate(0, 0)' }
+        { translate: '0 0' },
+        { translate: `${-s}px ${s * 0.4}px` },
+        { translate: `${s * 0.8}px ${-s * 0.5}px` },
+        { translate: `${-s * 0.5}px ${s * 0.3}px` },
+        { translate: `${s * 0.3}px 0` },
+        { translate: '0 0' }
       ], { duration: 360, easing: 'ease-out' });
     },
 
@@ -343,8 +347,12 @@
       flashEl.animate([{ opacity: 0.85 }, { opacity: 0 }], { duration: 420, easing: 'ease-out' });
     },
 
+    /** Queues a toast; one that is already showing or waiting is not repeated. */
     toast(options) {
-      toastQueue.push(options || {});
+      const opts = options || {};
+      const key = `${opts.title || ''}\n${opts.text || ''}`;
+      if (visibleToastKeys.has(key) || toastQueue.some((queued) => queued.key === key)) return;
+      toastQueue.push({ ...opts, key });
       showNextToast();
     },
 

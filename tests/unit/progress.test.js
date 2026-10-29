@@ -92,10 +92,24 @@ test('the letter splits into six pieces that rebuild the original text', () => {
   fresh();
   const chunks = progress.letterChunks();
   assert.equal(chunks.length, progress.LETTER_PIECES);
-  assert.equal(chunks.filter(Boolean).join(' '), LQ.content.finalLetter.split(/\s+/).filter(Boolean).join(' '));
+  assert.equal(chunks.join(''), LQ.content.finalLetter);
   assert.equal(progress.letterPiecesFound(), 0);
   progress.applyResult('catch', { score: 1, stars: 1 });
   assert.equal(progress.letterPiecesFound(), 1);
+});
+
+test('letter pieces keep line breaks and still reveal something for very short letters', () => {
+  const long = 'Dear you,\n\nevery day with you is a little adventure.\nThank you for everything, always.';
+  const longChunks = progress.letterChunks(long);
+  assert.equal(longChunks.join(''), long);
+  assert.ok(longChunks.every(Boolean));
+
+  const short = 'I love you 💖';
+  const shortChunks = progress.letterChunks(short);
+  assert.equal(shortChunks.length, progress.LETTER_PIECES);
+  assert.equal(shortChunks.join(''), short);
+  assert.ok(shortChunks.every(Boolean), 'every piece reveals text');
+  assert.ok(shortChunks.every((chunk) => !/[\uD800-\uDBFF]$/.test(chunk)), 'no piece ends inside an emoji');
 });
 
 test('tokens can be spent but never go negative', () => {

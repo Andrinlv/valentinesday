@@ -187,8 +187,18 @@ async function playQuiz(page, profile) {
   for (let index = 0; index < questions.length; index++) {
     await page.waitForFunction((i) => LQ.debug.session.instance.debug.state.index === i && !LQ.debug.session.instance.debug.state.locked, index);
     if (index === 0 && !profile.touch) {
-      await page.keyboard.press('Escape');
+      await page.keyboard.down('Escape');
       await page.waitForSelector('.modal--pause');
+      await page.keyboard.down('Escape'); // auto-repeat of the held key
+      await page.keyboard.up('Escape');
+      await page.waitForTimeout(250);
+      assert.equal(await page.locator('.modal--pause').count(), 1, 'a held Escape does not close the pause menu again');
+      await page.evaluate(() => document.querySelector('.modal--pause').focus());
+      await page.keyboard.press('Shift+Tab');
+      assert.ok(await page.evaluate(() => {
+        const dialog = document.querySelector('.modal--pause');
+        return dialog.contains(document.activeElement) && document.activeElement !== dialog;
+      }), 'Shift+Tab from the dialog itself stays inside the dialog');
       await shot(page, profile, 'pause');
       await page.dblclick('.modal--pause .modal__actions .btn--primary');
       await page.waitForFunction(() => !LQ.ui.modal.isOpen() && !LQ.debug.session.paused);
@@ -202,11 +212,19 @@ async function playQuiz(page, profile) {
       assert.equal(await page.isDisabled(`.quiz-answer:nth-child(${wrong + 1})`), true, 'wrong answers lock');
       await shot(page, profile, 'quiz-wrong');
     }
+    if (index === 1 && !profile.touch) {
+      await page.keyboard.press(`Alt+${questions[index] + 1}`);
+      await page.waitForTimeout(150);
+      const state = await page.evaluate(() => LQ.debug.session.instance.debug.state);
+      assert.ok(state.index === 1 && !state.locked, 'Alt+digit is left to the browser');
+    }
     if (index === 0 && profile.touch) {
       await tapElement(page, profile, '#hud-pause');
       await page.waitForSelector('.modal--pause');
       await tapElement(page, profile, '.modal--pause .modal__actions .btn--primary');
       await page.waitForFunction(() => !LQ.ui.modal.isOpen());
+      /* The fading backdrop swallows taps for a moment by design, so a double tap never reaches the quiz. */
+      await page.waitForSelector('.modal-backdrop', { state: 'detached' });
     }
     await tapElement(page, profile, `.quiz-answer:nth-child(${questions[index] + 1})`);
     await page.waitForTimeout(100);
@@ -284,6 +302,37 @@ async function playMaze(page, profile) {
     await page.evaluate(() => LQ.debug.session.instance.debug.setGodMode(true));
     if (floor === 0) await shot(page, profile, 'maze-floor1');
 
+    if (floor === 0 && !profile.touch) {
+      const key = await page.evaluate(() => LQ.debug.session.instance.debug.layout().key);
+      const [firstStep] = await page.evaluate(([x, y]) => LQ.debug.session.instance.debug.pathTo(x, y), [key.x, key.y]);
+      const start = await page.evaluate(() => ({ ...LQ.debug.session.instance.debug.state.player }));
+      await page.keyboard.down('Meta');
+      await page.keyboard.down(DIR_KEYS[firstStep]);
+      await page.waitForTimeout(300);
+      await page.keyboard.up(DIR_KEYS[firstStep]);
+      await page.keyboard.up('Meta');
+      const still = await page.evaluate(() => LQ.debug.session.instance.debug.state.player);
+      assert.ok(still.x === start.x && still.y === start.y && !still.moving, 'Cmd/Meta shortcuts do not move the hero');
+
+      await page.evaluate(() => {
+        window.__pad = { buttons: Array.from({ length: 17 }, () => ({ pressed: false, value: 0 })), axes: [0, 0, 0, 0] };
+        navigator.getGamepads = () => [window.__pad];
+      });
+      const pressStart = async () => {
+        await page.evaluate(() => { window.__pad.buttons[9].pressed = true; });
+        await page.waitForTimeout(120);
+        await page.evaluate(() => { window.__pad.buttons[9].pressed = false; });
+        await page.waitForTimeout(120);
+      };
+      await pressStart();
+      await page.waitForSelector('.modal--pause', { timeout: 3000 });
+      assert.equal(await page.evaluate(() => LQ.debug.session.paused), true, 'gamepad Start pauses');
+      await pressStart();
+      await page.waitForFunction(() => !LQ.ui.modal.isOpen() && !LQ.debug.session.paused, null, { timeout: 3000 });
+      await page.evaluate(() => { delete navigator.getGamepads; });
+      await page.waitForTimeout(250);
+    }
+
     if (floor === 0 && profile.touch) {
       const canvas = await page.locator('.game-canvas--maze').boundingBox();
       const before = await page.evaluate(() => ({ ...LQ.debug.session.instance.debug.state.player }));
@@ -349,7 +398,10 @@ async function playMaze(page, profile) {
 
 async function playFinal(page, profile) {
   await page.waitForSelector('.final-answers:not([hidden])', { timeout: 15000 });
+  await page.waitForTimeout(600);
   await shot(page, profile, 'final-question');
+  const center = (box) => ({ x: box.x + box.width / 2, y: box.y + box.height / 2 });
+  const yesBefore = center(await page.locator('.final-yes').boundingBox());
   for (let attempt = 1; attempt <= 3; attempt++) {
     const before = await page.locator('.final-no').boundingBox();
     if (profile.touch) {
@@ -360,6 +412,8 @@ async function playFinal(page, profile) {
     await page.waitForTimeout(320);
     const after = await page.locator('.final-no').boundingBox();
     assert.notDeepEqual([Math.round(after.x), Math.round(after.y)], [Math.round(before.x), Math.round(before.y)], 'NO runs away');
+    const yesNow = center(await page.locator('.final-yes').boundingBox());
+    assert.ok(Math.abs(yesNow.x - yesBefore.x) < 2 && Math.abs(yesNow.y - yesBefore.y) < 2, 'YES keeps its place when NO runs away');
   }
   if (!profile.touch) {
     await page.focus('.final-no');
@@ -378,6 +432,12 @@ async function playFinal(page, profile) {
   await page.waitForSelector('.final-summary', { timeout: 10000 });
   await page.waitForTimeout(700);
   await shot(page, profile, 'final-summary');
+  if (!profile.touch) {
+    assert.ok(await page.evaluate(() => document.activeElement.classList.contains('final-summary')), 'the summary takes focus');
+    await page.keyboard.press('Enter');
+    await page.waitForTimeout(300);
+    assert.equal(await page.evaluate(() => LQ.ui.scenes.current), 'game', 'a stray Enter does not leave the finale');
+  }
 
   const [download] = await Promise.all([
     page.waitForEvent('download', { timeout: 15000 }),
@@ -425,6 +485,8 @@ async function checkMenus(page, profile) {
   await tapElement(page, profile, '.dock-btn:nth-child(1)');
   await page.waitForSelector('.letter-paper');
   assert.equal(await page.locator('.letter-piece--hidden').count(), 0, 'the whole letter is revealed');
+  assert.equal(await page.evaluate(() => document.querySelector('.letter-paper__text').textContent), await page.evaluate(() => LQ.content.finalLetter));
+  assert.equal(await page.evaluate(() => getComputedStyle(document.querySelector('.letter-paper__text')).whiteSpace), 'pre-line');
   await shot(page, profile, 'letter');
   await page.keyboard.press('Escape');
 
@@ -445,6 +507,113 @@ async function checkMenus(page, profile) {
   await page.keyboard.press('Escape');
   await page.waitForFunction(() => !LQ.ui.modal.isOpen());
   await shot(page, profile, 'map-complete');
+
+  const map = await page.evaluate(() => {
+    const world = document.getElementById('map-world').getBoundingClientRect();
+    const nodes = Array.from(document.querySelectorAll('.map-node'), (node) => {
+      const rect = node.getBoundingClientRect();
+      return { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 };
+    });
+    let min = Infinity;
+    nodes.forEach((a, i) => nodes.slice(i + 1).forEach((b) => { min = Math.min(min, Math.hypot(a.x - b.x, a.y - b.y)); }));
+    return { min, avatarTop: document.querySelector('.map-avatar').getBoundingClientRect().top, worldTop: world.top };
+  });
+  assert.ok(map.min >= 64, `map nodes do not overlap (${Math.round(map.min)}px)`);
+  assert.ok(map.avatarTop >= map.worldTop - 4, 'the hero on the top node is not cut off');
+
+  await page.waitForFunction(() => !document.querySelector('.toast'), null, { timeout: 15000 });
+  const toasts = await page.evaluate(() => {
+    LQ.fx.toast({ icon: '🧪', title: 'Dedupe check' });
+    LQ.fx.toast({ icon: '🧪', title: 'Dedupe check' });
+    return Array.from(document.querySelectorAll('.toast__title')).filter((node) => node.textContent === 'Dedupe check').length;
+  });
+  assert.equal(toasts, 1, 'an identical toast is not stacked');
+}
+
+/* ---------- edge cases ---------- */
+
+/** A trial that starts while the tab is hidden must still pause once its transition is over. */
+async function checkHiddenDuringTransition(page) {
+  await page.evaluate(() => LQ.app.startLevel('quiz'));
+  await page.waitForFunction(() => LQ.ui.scenes.transitioning);
+  await page.evaluate(() => {
+    Object.defineProperty(document, 'hidden', { configurable: true, get: () => true });
+    document.dispatchEvent(new Event('visibilitychange'));
+  });
+  await waitForScene(page, 'game');
+  await page.waitForSelector('.modal--pause', { timeout: 5000 });
+  assert.equal(await page.evaluate(() => LQ.debug.session.paused), true, 'hidden tab pauses the new trial');
+  await page.evaluate(() => {
+    delete document.hidden;
+    document.dispatchEvent(new Event('visibilitychange'));
+  });
+  await page.click('.modal--pause .modal__actions .btn:nth-child(3)');
+  await waitForScene(page, 'map');
+}
+
+/** Another tab saving settings leaves the map alone; new progress redraws it. */
+async function checkCrossTabSync(page, context) {
+  await page.waitForFunction(() => !LQ.ui.modal.isOpen() && !LQ.ui.scenes.transitioning);
+  await page.evaluate(() => { document.querySelector('.map-node').dataset.marker = 'before'; });
+  const other = await context.newPage();
+  await other.goto(`file://${path.join(ROOT, 'README.md')}`);
+  const key = await page.evaluate(() => LQ.store.KEY);
+  const sfx = await page.evaluate(() => LQ.store.data.settings.sfx);
+  await other.evaluate((storageKey) => {
+    const save = JSON.parse(localStorage.getItem(storageKey));
+    save.settings.sfx = !save.settings.sfx;
+    localStorage.setItem(storageKey, JSON.stringify(save));
+  }, key);
+  await page.waitForFunction((was) => LQ.store.data.settings.sfx !== was, sfx, { timeout: 5000 });
+  assert.equal(await page.locator('.map-node[data-marker]').count(), 1, 'a settings change does not redraw the map');
+  const tokens = await page.evaluate(() => LQ.store.data.tokens);
+  await other.evaluate((storageKey) => {
+    const save = JSON.parse(localStorage.getItem(storageKey));
+    save.settings.sfx = !save.settings.sfx;
+    save.tokens += 5;
+    localStorage.setItem(storageKey, JSON.stringify(save));
+  }, key);
+  await page.waitForFunction((was) => LQ.store.data.tokens === was + 5, tokens, { timeout: 5000 });
+  await page.waitForFunction(() => !document.querySelector('.map-node[data-marker]'), null, { timeout: 5000 });
+  await other.close();
+}
+
+/** Phones held sideways: the maze stays beside the direction pad and the finale fits on screen. */
+async function checkLandscape(page, profile) {
+  await page.setViewportSize({ width: 844, height: 390 });
+  await page.waitForTimeout(400);
+  await page.evaluate(() => LQ.app.startLevel('maze'));
+  await waitForScene(page, 'game');
+  await waitForPhase(page, 'play');
+  await page.waitForTimeout(300);
+  const maze = await page.evaluate(() => {
+    const canvas = document.querySelector('.game-canvas--maze').getBoundingClientRect();
+    const pad = document.querySelector('.dpad').getBoundingClientRect();
+    const hero = LQ.debug.session.instance.debug.heroOnScreen();
+    return { heroX: canvas.left + hero.x, padRight: pad.right };
+  });
+  assert.ok(maze.heroX > maze.padRight, `the hero stays beside the pad (${JSON.stringify(maze)})`);
+  await shot(page, profile, 'landscape-maze');
+  await tapElement(page, profile, '#hud-pause');
+  await page.waitForSelector('.modal--pause');
+  await tapElement(page, profile, '.modal--pause .modal__actions .btn:nth-child(3)');
+  await waitForScene(page, 'map');
+
+  await page.evaluate(() => LQ.app.startLevel('final'));
+  await waitForScene(page, 'game');
+  await page.waitForSelector('.final-answers:not([hidden])', { timeout: 15000 });
+  await page.waitForTimeout(600);
+  const fits = await page.evaluate(() => ['.final-bubble__question', '.final-yes', '.final-no'].every((selector) => {
+    const rect = document.querySelector(selector).getBoundingClientRect();
+    return rect.top >= 0 && rect.bottom <= window.innerHeight && rect.height > 0;
+  }));
+  assert.ok(fits, 'question and both answers are visible in landscape');
+  await shot(page, profile, 'landscape-final');
+  await tapElement(page, profile, '#hud-pause');
+  await page.waitForSelector('.modal--pause');
+  await tapElement(page, profile, '.modal--pause .modal__actions .btn:nth-child(3)');
+  await waitForScene(page, 'map');
+  await page.setViewportSize(profile.options.viewport);
 }
 
 /* ---------- runner ---------- */
@@ -466,7 +635,7 @@ async function runProfile(browser, profile) {
   await tapElement(page, profile, '#start-btn');
   await waitForScene(page, 'select');
   await tapElement(page, profile, '.hero-card:nth-child(3)');
-  await page.fill('#hero-name', 'Louisa');
+  await page.fill('#hero-name', 'Jordan');
   await shot(page, profile, 'select');
   await page.evaluate(() => {
     window.__sceneRequests = [];
@@ -494,17 +663,42 @@ async function runProfile(browser, profile) {
   await tapElement(page, profile, '#intro-skip');
   await waitForScene(page, 'map');
   const hero = await page.evaluate(() => LQ.store.data.hero);
-  assert.deepEqual(hero, { name: 'Louisa', avatar: 2, chosen: true });
+  assert.deepEqual(hero, { name: 'Jordan', avatar: 2, chosen: true });
 
   const trials = [['catch', playCatch], ['memory', playMemory], ['archery', playArchery], ['quiz', playQuiz], ['maze', playMaze], ['final', playFinal]];
-  for (const [levelId, play] of trials) {
-    if (levelId === 'catch') await page.waitForTimeout(400);
-    await shot(page, profile, `map-before-${levelId}`);
-    await playFromLevelCard(page, profile, levelId);
-    log(profile, `playing ${levelId}`);
-    await play(page, profile);
+  try {
+    for (const [levelId, play] of trials) {
+      if (levelId === 'catch') await page.waitForTimeout(400);
+      await shot(page, profile, `map-before-${levelId}`);
+      await playFromLevelCard(page, profile, levelId);
+      log(profile, `playing ${levelId}`);
+      await play(page, profile);
+    }
+    await checkMenus(page, profile);
+    if (profile.touch) {
+      await checkLandscape(page, profile);
+    } else {
+      await checkHiddenDuringTransition(page);
+      await checkCrossTabSync(page, context);
+    }
+  } catch (err) {
+    /* Leave evidence behind: what the player saw and what the game thought. */
+    await shot(page, profile, 'failure').catch(() => {});
+    const snapshot = await page.evaluate(() => ({
+      scene: LQ.ui.scenes.current,
+      transitioning: LQ.ui.scenes.transitioning,
+      modalOpen: LQ.ui.modal.isOpen(),
+      session: LQ.debug.session && {
+        levelId: LQ.debug.session.levelId,
+        paused: LQ.debug.session.paused,
+        finished: LQ.debug.session.finished,
+        state: LQ.debug.session.instance && LQ.debug.session.instance.debug.state
+      }
+    })).catch((evalErr) => `unavailable: ${evalErr.message}`);
+    console.error(`[${profile.name}] state at failure: ${JSON.stringify(snapshot)}`);
+    if (problems.length) console.error(`[${profile.name}] console problems so far:\n${problems.join('\n')}`);
+    throw err;
   }
-  await checkMenus(page, profile);
 
   const save = await page.evaluate(() => LQ.store.data);
   for (const [id, level] of Object.entries(save.levels)) assert.equal(level.completed, true, `${id} completed`);

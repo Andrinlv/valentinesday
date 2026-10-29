@@ -31,7 +31,7 @@ test('sanitize keeps valid data and repairs tampered fields', () => {
   const save = store.sanitize({
     version: 1,
     introSeen: true,
-    hero: { name: '  Louisa the Brave Knight of Hearts  ', avatar: 9, chosen: true },
+    hero: { name: '  Jordan the Brave Knight of Hearts  ', avatar: 9, chosen: true },
     levels: {
       catch: { completed: true, stars: 7, best: 1234.6, plays: 2 },
       memory: { completed: false, stars: 2, best: -5, plays: 'x' },
@@ -45,7 +45,7 @@ test('sanitize keeps valid data and repairs tampered fields', () => {
     stats: { playTimeMs: 5000, noAttempts: -3 }
   });
   assert.equal(save.introSeen, true);
-  assert.equal(save.hero.name, 'Louisa the Brave');
+  assert.equal(save.hero.name, 'Jordan the Brave');
   assert.equal(save.hero.avatar, 3);
   assert.deepEqual(save.levels.catch, { completed: true, stars: 3, best: 1235, plays: 2 });
   assert.deepEqual(save.levels.memory, { completed: true, stars: 2, best: 0, plays: 0 }, 'stars imply completion');

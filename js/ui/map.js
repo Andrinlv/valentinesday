@@ -8,28 +8,52 @@
   const WALK_SPEED = 170; // px per second
   const AVATAR_SCALE = 3;
   const AVATAR_LIFT = 26; // the hero stands slightly above the node centre
+  const AVATAR_HEADROOM = AVATAR_LIFT + 16 * AVATAR_SCALE + 8; // room above a node for the hero standing on it
+  const MIN_NODE_GAP = 84; // node diameter plus a little air
 
   function starText(count) {
     return '★'.repeat(count) + '☆'.repeat(3 - count);
   }
 
-  /** Node positions: a gentle zigzag, bottom-to-top on portrait screens, left-to-right otherwise. */
-  function layoutPoints(width, height, count) {
-    const portrait = height > width * 1.05;
+  /** A gentle zigzag of node positions: bottom-to-top when vertical, left-to-right otherwise. */
+  function zigzag(width, height, count, vertical) {
     const points = [];
     for (let i = 0; i < count; i++) {
-      const share = i / (count - 1);
-      if (portrait) {
+      const share = count > 1 ? i / (count - 1) : 0.5;
+      if (vertical) {
         const padY = U.clamp(height * 0.09, 46, 80);
+        const top = U.clamp(AVATAR_HEADROOM, padY, Math.max(padY, height - padY));
         const swing = Math.max(0, width / 2 - U.clamp(width * 0.16, 52, 90));
-        points.push({ x: width / 2 + Math.sin(i * 1.35 + 0.35) * swing, y: height - padY - share * (height - padY * 2) });
+        points.push({ x: width / 2 + Math.sin(i * 1.35 + 0.35) * swing, y: height - padY - share * (height - padY - top) });
       } else {
         const padX = U.clamp(width * 0.08, 56, 120);
-        const swing = Math.max(0, height / 2 - U.clamp(height * 0.16, 52, 90));
-        points.push({ x: padX + share * (width - padX * 2), y: height / 2 + Math.sin(i * 1.3 + 0.9) * swing });
+        const padY = U.clamp(height * 0.16, 52, 90);
+        const top = U.clamp(AVATAR_HEADROOM, padY, Math.max(padY, height - padY));
+        const swing = Math.max(0, (height - top - padY) / 2);
+        points.push({ x: padX + share * (width - padX * 2), y: top + swing + Math.sin(i * 1.3 + 0.9) * swing });
       }
     }
     return points;
+  }
+
+  function minSpacing(points) {
+    let min = Infinity;
+    for (let i = 0; i < points.length; i++) {
+      for (let j = i + 1; j < points.length; j++) {
+        min = Math.min(min, Math.hypot(points[i].x - points[j].x, points[i].y - points[j].y));
+      }
+    }
+    return min;
+  }
+
+  /** Vertical path on portrait screens, horizontal otherwise; the other way round when that keeps nodes apart. */
+  function layoutPoints(width, height, count) {
+    const preferVertical = height > width * 1.05;
+    const preferred = zigzag(width, height, count, preferVertical);
+    const spacing = minSpacing(preferred);
+    if (spacing >= MIN_NODE_GAP) return preferred;
+    const other = zigzag(width, height, count, !preferVertical);
+    return minSpacing(other) > spacing ? other : preferred;
   }
 
   /** Smooth Catmull-Rom segment between points i and i+1 as an SVG path. */

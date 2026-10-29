@@ -121,15 +121,17 @@
       chunks.forEach((chunk, index) => {
         if (!chunk) return;
         if (index < found) {
-          text.append(U.el('span', { class: 'letter-piece', text: `${chunk} ` }));
-        } else {
-          const width = U.clamp(Math.round(chunk.length * 0.5), 3, 14);
-          text.append(U.el('span', {
-            class: 'letter-piece letter-piece--hidden',
-            style: { width: `${width}em` },
-            attrs: { role: 'img', 'aria-label': t('letter.missing') }
-          }), ' ');
+          text.append(U.el('span', { class: 'letter-piece', text: chunk }));
+          return;
         }
+        /* A missing piece keeps its trailing space or line break, so the letter's shape stays the same. */
+        const words = chunk.trimEnd();
+        const width = U.clamp(Math.round(U.graphemes(words).length * 0.5), 3, 14);
+        text.append(U.el('span', {
+          class: 'letter-piece letter-piece--hidden',
+          style: { width: `${width}em` },
+          attrs: { role: 'img', 'aria-label': t('letter.missing') }
+        }), chunk.slice(words.length));
       });
       const paper = U.el('div', { class: 'letter-paper paper' }, [
         U.el('span', { class: 'wax-seal', text: '❤', attrs: { 'aria-hidden': 'true' } }),

@@ -2,6 +2,7 @@
 (function (LQ) {
   'use strict';
 
+  const U = LQ.utils;
   const MEMORY_PAIRS = 6;
   const AVATAR_COUNT = 4;
   const IMAGE_PATTERN = /\.(png|jpe?g|gif|webp|avif|svg)(\?.*)?$/i;
@@ -36,19 +37,24 @@
     console.warn(`[LoveQuest] config: ${message}`);
   }
 
-  function cleanText(value, maxLength) {
-    return typeof value === 'string' ? value.trim().slice(0, maxLength) : '';
+  /** Trimmed text of at most maxLength characters (never splitting an emoji); '' for non-strings. */
+  function cleanText(value, maxLength, field) {
+    if (typeof value !== 'string') return '';
+    const text = value.trim();
+    const short = U.truncate(text, maxLength).trimEnd();
+    if (short !== text) warn(`"${field}" is longer than ${maxLength} characters and was shortened.`);
+    return short;
   }
 
   function textOr(value, fallback, maxLength, field) {
-    const text = cleanText(value, maxLength);
+    const text = cleanText(value, maxLength, field);
     if (text) return text;
     if (value !== undefined) warn(`"${field}" must be a non-empty text, using the default.`);
     return fallback;
   }
 
   function validateQuotes(list) {
-    const quotes = Array.isArray(list) ? list.map((quote) => cleanText(quote, 160)).filter(Boolean) : [];
+    const quotes = Array.isArray(list) ? list.map((quote) => cleanText(quote, 160, 'loveQuotes')).filter(Boolean) : [];
     if (quotes.length) return quotes;
     if (list !== undefined) warn('"loveQuotes" needs at least one text, using the defaults.');
     return DEFAULTS.loveQuotes.slice();
@@ -57,7 +63,7 @@
   function validateMemory(list) {
     const items = [];
     (Array.isArray(list) ? list : []).forEach((entry) => {
-      const value = cleanText(entry, 300);
+      const value = cleanText(entry, 300, 'memoryItems');
       if (!value) return;
       if (items.includes(value)) {
         warn(`memory item "${value}" is listed twice; duplicates are ignored.`);
@@ -83,9 +89,10 @@
     const questions = [];
     list.forEach((entry, index) => {
       const source = entry && typeof entry === 'object' ? entry : {};
-      const question = cleanText(source.question, 240);
+      const field = `quiz #${index + 1}`;
+      const question = cleanText(source.question, 240, `${field} question`);
       const rawAnswers = Array.isArray(source.answers) ? source.answers : [];
-      const answers = rawAnswers.map((answer) => cleanText(answer, 90));
+      const answers = rawAnswers.map((answer) => cleanText(answer, 90, `${field} answer`));
       const correct = source.correct;
       const valid = question &&
         answers.length >= 2 && answers.length <= 6 &&
@@ -95,7 +102,7 @@
         warn(`quiz question #${index + 1} is incomplete (question, 2–6 answers and a valid "correct" index are required) and was skipped.`);
         return;
       }
-      questions.push({ question, answers, correct, wrongMsg: cleanText(source.wrongMsg, 140) });
+      questions.push({ question, answers, correct, wrongMsg: cleanText(source.wrongMsg, 140, `${field} wrongMsg`) });
     });
     if (questions.length) return questions;
     warn('no valid quiz question found, using the default question.');
@@ -104,9 +111,9 @@
 
   function validateCoupon(entry) {
     if (!entry || typeof entry !== 'object') return null;
-    const title = cleanText(entry.title, 90);
+    const title = cleanText(entry.title, 90, 'coupon title');
     if (!title) return null;
-    return { icon: cleanText(entry.icon, 16) || '🎟️', title };
+    return { icon: cleanText(entry.icon, 16, 'coupon icon') || '🎟️', title };
   }
 
   function validateCoupons(list) {

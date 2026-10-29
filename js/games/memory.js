@@ -10,6 +10,7 @@
   const PEEK_MS = 1300;
   const PEEK_PENALTY = 2;
   const CARD_RATIO = 1.2;
+  const FALLBACK_FACES = Object.freeze(['💞', '💗', '💖', '💝', '💘', '💓', '🌷', '🌸', '🍀', '⭐', '🎀', '🦋']);
 
   function starsFor(moves) {
     if (moves <= STAR_MOVES[1]) return 3;
@@ -62,6 +63,8 @@
     root.append(U.el('div', { class: 'memory' }, [board, U.el('div', { class: 'memory-toolbar' }, peekButton)]));
     grid.style.setProperty('--heart', `url(${api.sprites.item('heart', 'red').toDataURL()})`);
 
+    /* Stand-ins for photos that fail to load; never one of the configured emoji, so pairs stay unambiguous. */
+    const fallbackFaces = FALLBACK_FACES.filter((glyph) => !items.some((item) => item.value === glyph));
     const deck = U.shuffle(items.flatMap((item, pair) => [{ item, pair }, { item, pair }]));
     const cards = deck.map((entry, index) => {
       const face = entry.item.isImage
@@ -69,8 +72,8 @@
         : U.el('span', { class: 'memory-card__emoji', text: entry.item.value });
       if (entry.item.isImage) {
         face.addEventListener('error', () => {
-          console.warn(`[LoveQuest] Memory photo "${entry.item.value}" could not be loaded, showing a heart instead.`);
-          face.replaceWith(U.el('span', { class: 'memory-card__emoji', text: ['💞', '💗', '💖', '💝', '💘', '💓'][entry.pair % 6] }));
+          console.warn(`[LoveQuest] Memory photo "${entry.item.value}" could not be loaded, showing a symbol instead.`);
+          face.replaceWith(U.el('span', { class: 'memory-card__emoji', text: fallbackFaces[entry.pair % fallbackFaces.length] }));
         }, { once: true });
       }
       const el = U.el('button', {

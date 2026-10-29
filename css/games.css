@@ -559,6 +559,16 @@
   transition: left 0.18s ease, top 0.18s ease, transform 0.08s ease;
 }
 
+.final-no-slot {
+  flex: none;
+  display: inline-block;
+  visibility: hidden;
+}
+
+.final-summary:focus {
+  outline: none;
+}
+
 .final-no.is-loose {
   position: absolute;
   z-index: 5;
@@ -710,8 +720,30 @@
     gap: 8px;
   }
 
+  /* The HUD already shows the title; the question gets the room instead. */
+  .final-title {
+    display: none;
+  }
+
   .final-bubble {
-    min-height: 0;
+    flex-shrink: 0;
+    min-height: auto;
+    margin-top: auto;
     padding: 10px 16px;
+  }
+
+  .final-couple {
+    padding-bottom: 4px;
+  }
+
+  /* createView() sizes the pixel canvases inline, so the override needs !important. */
+  .final-couple .pixel-art {
+    width: 64px !important;
+    height: 64px !important;
+  }
+
+  .final-couple__heart .pixel-art {
+    width: 33px !important;
+    height: 30px !important;
   }
 }

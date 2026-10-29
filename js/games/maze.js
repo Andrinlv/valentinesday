@@ -256,7 +256,7 @@
       doorOpen: false,
       runDir: null
     };
-    let view = { width: 1, height: 1, dpr: 1, scale: 2, reserve: 0 };
+    let view = { width: 1, height: 1, dpr: 1, scale: 2, reserveLeft: 0, reserveBottom: 0 };
 
     const input = LQ.input.createDirectionalInput(scope, {
       swipeTarget: canvas,
@@ -754,7 +754,6 @@
     /* ---------- update ---------- */
 
     function update(dt) {
-      if (input.pollGamepad()) api.pause();
       for (const firefly of state.fireflies) {
         firefly.phase += dt;
         firefly.x += (firefly.vx + Math.sin(firefly.phase * 0.7) * 8) * dt;
@@ -783,23 +782,21 @@
 
     /* ---------- render ---------- */
 
+    /** Centres a small world inside the band, otherwise follows the focus without showing the void beyond the walls. */
+    function followAxis(world, band, focus) {
+      return world <= band ? Math.round((band - world) / 2) : Math.round(U.clamp(band / 2 - focus, band - world, 0));
+    }
+
     function camera() {
       const m = maze();
       const s = view.scale;
-      const worldW = m.width * TILE * s;
-      const worldH = m.height * TILE * s;
-      const viewW = canvas.width;
-      const viewH = canvas.height;
       const p = entityPosition(state.player);
-      const centerX = (p.x + 0.5) * TILE * s;
-      const centerY = (p.y + 0.5) * TILE * s;
-      const offX = worldW <= viewW ? Math.round((viewW - worldW) / 2) : Math.round(U.clamp(viewW / 2 - centerX, viewW - worldW, 0));
-      /* On touch screens the hero always stays above the direction pad. */
-      const usableH = viewH - view.reserve;
-      const offY = worldH <= usableH
-        ? Math.round((usableH - worldH) / 2)
-        : Math.round(U.clamp(usableH / 2 - centerY, usableH - worldH, 0));
-      return { offX, offY };
+      /* On touch screens the maze stays clear of the direction pad: beside it in landscape, above it in portrait. */
+      const bandW = Math.max(canvas.width * 0.5, canvas.width - view.reserveLeft);
+      const bandH = Math.max(canvas.height * 0.5, canvas.height - view.reserveBottom);
+      const offX = canvas.width - bandW + followAxis(m.width * TILE * s, bandW, (p.x + 0.5) * TILE * s);
+      const offY = followAxis(m.height * TILE * s, bandH, (p.y + 0.5) * TILE * s);
+      return { offX: Math.round(offX), offY };
     }
 
     function drawSprite(sprite, worldX, worldY) {
@@ -943,21 +940,41 @@
     function resize() {
       const size = U.fitCanvas(canvas, 3);
       const deviceMin = Math.min(size.width, size.height) * size.dpr;
-      const reserve = pad.hidden ? 0 : Math.round((pad.offsetHeight + 24) * size.dpr);
-      view = { ...size, reserve, scale: Math.max(1, Math.round(deviceMin / (TILE * VIEW_TILES))) };
+      let reserveLeft = 0;
+      let reserveBottom = 0;
+      if (!pad.hidden) {
+        const padRect = pad.getBoundingClientRect();
+        const canvasRect = canvas.getBoundingClientRect();
+        if (size.width > size.height) reserveLeft = Math.max(0, Math.round((padRect.right - canvasRect.left + 12) * size.dpr));
+        else reserveBottom = Math.max(0, Math.round((canvasRect.bottom - padRect.top + 12) * size.dpr));
+      }
+      view = { ...size, reserveLeft, reserveBottom, scale: Math.max(1, Math.round(deviceMin / (TILE * VIEW_TILES))) };
       state.automapDirty = true;
+    }
+
+    /* Polled every frame, also while paused, so Start on a gamepad can close the pause menu again. */
+    function frame(now) {
+      if (input.pollGamepad()) api.togglePause();
+      render(now);
     }
 
     U.observeResize(scope, root, resize);
     resize();
     loadFloor(0);
-    api.loop(update, render).start();
+    api.loop(update, frame).start();
     scope.timeout(() => hint.classList.add('is-hidden'), 5000);
 
     return {
       debug: {
         state,
         layout: () => state.layout,
+        /** The hero's centre in CSS pixels, relative to the canvas. */
+        heroOnScreen() {
+          const { offX, offY } = camera();
+          const p = entityPosition(state.player);
+          const s = view.scale;
+          return { x: (offX + (p.x + 0.5) * TILE * s) / view.dpr, y: (offY + (p.y + 0.5) * TILE * s) / view.dpr };
+        },
         /** Shortest list of directions from the player to (x, y). */
         pathTo(x, y) {
           const m = maze();
