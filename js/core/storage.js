@@ -87,6 +87,12 @@
     return save;
   }
 
+  /* Updates the save object in place so every module holding a reference keeps seeing current data. */
+  function replaceContents(target, source) {
+    for (const key of Object.keys(target)) delete target[key];
+    return Object.assign(target, source);
+  }
+
   let warnedWrite = false;
 
   const store = {
@@ -106,7 +112,7 @@
       } catch (err) {
         console.warn('[LoveQuest] The save game could not be read, starting fresh.', err);
       }
-      this.data = sanitize(raw);
+      replaceContents(this.data, sanitize(raw));
       return this.data;
     },
 
@@ -124,7 +130,7 @@
     /** Clears all progress but keeps the player's settings. */
     resetProgress() {
       const settings = { ...this.data.settings };
-      this.data = createDefault();
+      replaceContents(this.data, createDefault());
       this.data.settings = settings;
       this.save();
     }

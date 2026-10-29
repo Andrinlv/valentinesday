@@ -8,6 +8,7 @@
   const registry = new Map();
   let current = null;
   let transitioning = false;
+  let inFlightKey = null;
   let queued = null;
   let wipeEl = null;
   let holeEl = null;
@@ -66,9 +67,22 @@
     });
   }
 
+  const requestKey = (name, params) => `${name}|${JSON.stringify(params || {})}`;
+
+  /** While the old scene fades out it must not receive keyboard, pointer or focus input. */
+  function setInert(on) {
+    for (const id of ['app', 'modal-root']) {
+      const el = document.getElementById(id);
+      if (el) el.inert = on;
+    }
+    const active = document.activeElement;
+    if (on && active && active !== document.body && typeof active.blur === 'function') active.blur();
+  }
+
   function activate(name, params) {
     const next = registry.get(name);
     if (!next) throw new Error(`Unknown scene "${name}"`);
+    if (LQ.ui.modal) LQ.ui.modal.closeAll();
     if (current) {
       current.scope.dispose();
       if (current.def.exit) current.def.exit();
@@ -105,11 +119,12 @@
       return transitioning;
     },
 
-    /** Shows a scene. Re-showing the current scene restarts it. */
+    /** Shows a scene. Re-showing the current scene restarts it; a repeated in-flight request is ignored. */
     async show(name, params, options) {
       const opts = options || {};
+      const key = requestKey(name, params);
       if (transitioning) {
-        queued = [name, params, opts];
+        if (key !== inFlightKey) queued = [name, params, opts];
         return;
       }
       if (opts.transition === false || !current) {
@@ -117,15 +132,20 @@
         return;
       }
       transitioning = true;
+      inFlightKey = key;
+      setInert(true);
       try {
         if (LQ.audio) LQ.audio.play('whoosh');
         await wipe('close');
+        setInert(false);
         activate(name, params);
       } catch (err) {
         console.error(`[LoveQuest] Could not open scene "${name}":`, err);
       } finally {
+        setInert(false);
         await wipe('open');
         transitioning = false;
+        inFlightKey = null;
         if (queued) {
           const [queuedName, queuedParams, queuedOptions] = queued;
           queued = null;

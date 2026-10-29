@@ -700,10 +700,10 @@
       state.phase = 'dead';
       audio.play('bad');
       api.banner(t('maze.heartbroken'), { duration: 1800 });
-      scope.timeout(() => {
+      scope.timeout(() => api.whenActive(() => {
         state.score = state.floorStartScore;
         loadFloor(state.floorIndex);
-      }, 1900);
+      }), 1900);
     }
 
     function checkGhostCollisions() {
@@ -733,7 +733,8 @@
       if (!lastFloor) {
         audio.play('floorClear');
         api.banner(t('maze.floorClear'), { duration: 1500, tone: 'gold', sub: `+${SCORE.floor + timeBonus} ${t('common.lp')}` });
-        scope.timeout(() => loadFloor(state.floorIndex + 1), 1700);
+        const nextFloor = state.floorIndex + 1;
+        scope.timeout(() => api.whenActive(() => loadFloor(nextFloor)), 1700);
         return;
       }
       /* The hero stops in front of the gate; the beloved appears in the doorway. */
@@ -747,9 +748,7 @@
       state.phase = 'won';
       api.achieve('mazeRunner');
       if (state.livesLost === 0) api.achieve('untouchable');
-      scope.timeout(() => {
-        api.finish({ score: state.score, stars: starsFor(state.livesLost, state.totalTime, state.totalPar), delay: 300 });
-      }, 2300);
+      api.finish({ score: state.score, stars: starsFor(state.livesLost, state.totalTime, state.totalPar), delay: 2600 });
     }
 
     /* ---------- update ---------- */

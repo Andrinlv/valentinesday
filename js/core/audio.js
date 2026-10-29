@@ -190,8 +190,9 @@
       return;
     }
     if (!ensureContext()) return;
-    if (ctx.state === 'suspended') {
-      if (document.hidden) return; /* never wake the audio engine in a background tab */
+    if (ctx.state !== 'running') {
+      /* "suspended", or "interrupted" on iOS after a call; never wake the engine in a background tab */
+      if (document.hidden || ctx.state === 'closed') return;
       ctx.resume().catch(() => {});
     }
     try {
@@ -239,7 +240,7 @@
     /** Must run inside a user gesture at least once (browser autoplay rules). */
     unlock() {
       const context = ensureContext();
-      if (context && context.state === 'suspended') context.resume().catch(() => {});
+      if (context && context.state !== 'running' && context.state !== 'closed') context.resume().catch(() => {});
       syncMusic();
     },
 

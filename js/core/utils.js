@@ -53,7 +53,12 @@
             }
             break;
           case 'dataset': Object.assign(node.dataset, value); break;
-          case 'style': Object.assign(node.style, value); break;
+          case 'style':
+            for (const [name, style] of Object.entries(value)) {
+              if (name.startsWith('--')) node.style.setProperty(name, style);
+              else node.style[name] = style;
+            }
+            break;
           case 'on':
             for (const [type, handler] of Object.entries(value)) node.addEventListener(type, handler);
             break;

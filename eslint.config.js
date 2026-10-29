@@ -87,6 +87,6 @@ module.exports = [
   {
     /* Playwright callbacks run inside the page. */
     files: ['tests/e2e/**/*.js'],
-    languageOptions: { globals: { ...nodeGlobals, LQ: 'readonly', document: 'readonly' } }
+    languageOptions: { globals: { ...nodeGlobals, LQ: 'readonly', document: 'readonly', window: 'readonly' } }
   }
 ];

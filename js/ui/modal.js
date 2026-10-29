@@ -52,6 +52,7 @@
     }
     const root = document.getElementById('modal-root');
     const previousFocus = document.activeElement;
+    const openedAt = performance.now();
     const id = ++counter;
 
     const dialog = U.el('div', {
@@ -70,13 +71,18 @@
       body: U.el('div', { class: 'modal__body' }),
       dismissible: opts.dismissible,
       isOpen: true,
-      /** Closes the dialog; action is the chosen action object (if any). */
-      close(reason, action) {
+      /**
+       * Closes the dialog; action is the chosen action object (if any). When a pointer closed it,
+       * the fading backdrop keeps swallowing taps so a double tap cannot reach the scene below.
+       */
+      close(reason, action, event) {
         if (!handle.isOpen) return;
         handle.isOpen = false;
         const index = stack.indexOf(handle);
         if (index >= 0) stack.splice(index, 1);
+        const byPointer = reason === 'backdrop' || Boolean(event && event.detail > 0);
         backdrop.classList.add('is-leaving');
+        if (!byPointer) backdrop.classList.add('is-passthrough');
         setTimeout(() => backdrop.remove(), 200);
         if (previousFocus && typeof previousFocus.focus === 'function' && document.contains(previousFocus)) {
           previousFocus.focus({ preventScroll: true });
@@ -91,7 +97,13 @@
         class: 'modal__close',
         text: '✕',
         attrs: { 'aria-label': LQ.t('common.close') },
-        on: { click: () => { LQ.audio.play('click'); handle.close('close'); } }
+        on: {
+          click: (event) => {
+            if (!handle.isOpen) return;
+            LQ.audio.play('click');
+            handle.close('close', null, event);
+          }
+        }
       }));
     }
 
@@ -108,9 +120,10 @@
           class: `btn ${action.kind ? `btn--${action.kind}` : 'btn--primary'}`,
           text: action.label,
           on: {
-            click: () => {
+            click: (event) => {
+              if (!handle.isOpen) return;
               LQ.audio.play('click');
-              if (action.close !== false) handle.close('action', action);
+              if (action.close !== false) handle.close('action', action, event);
               if (action.onClick) action.onClick();
             }
           }
@@ -121,8 +134,11 @@
       dialog.append(actions);
     }
 
+    /* A click that started on the element which opened this dialog must not close it again. */
     backdrop.addEventListener('click', (event) => {
-      if (event.target === backdrop && handle.dismissible) handle.close('backdrop');
+      if (event.target !== backdrop || !handle.dismissible || !handle.isOpen) return;
+      if (performance.now() - openedAt < 350) return;
+      handle.close('backdrop');
     });
 
     root.append(backdrop);

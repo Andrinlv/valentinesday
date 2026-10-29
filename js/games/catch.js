@@ -181,9 +181,7 @@
       quote.hidden = true;
       hint.hidden = true;
       api.banner(t('catch.timeUp'), { duration: 1300 });
-      scope.timeout(() => {
-        api.finish({ score: state.score, stars: starsFor(state.score, state.letters) });
-      }, 900);
+      api.finish({ score: state.score, stars: starsFor(state.score, state.letters), delay: 1600 });
     }
 
     function update(dt) {

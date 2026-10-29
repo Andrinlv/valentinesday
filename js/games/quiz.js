@@ -121,10 +121,12 @@
         hud.set('score', U.formatNumber(state.score));
         hud.pulse('score');
         updateJoker();
-        scope.timeout(() => {
-          if (state.index + 1 < questions.length) showQuestion(state.index + 1);
-          else finishQuiz();
-        }, NEXT_DELAY_MS);
+        if (state.index + 1 < questions.length) {
+          const next = state.index + 1;
+          scope.timeout(() => api.whenActive(() => showQuestion(next)), NEXT_DELAY_MS);
+        } else {
+          finishQuiz();
+        }
         return;
       }
 
@@ -146,7 +148,7 @@
       state.over = true;
       updateJoker();
       if (state.mistakes === 0) api.achieve('knowItAll');
-      api.finish({ score: state.score, stars: starsFor(state.mistakes, questions.length) });
+      api.finish({ score: state.score, stars: starsFor(state.mistakes, questions.length), delay: NEXT_DELAY_MS + 300 });
     }
 
     scope.on(jokerButton, 'click', () => {

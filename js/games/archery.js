@@ -169,7 +169,7 @@
       if (perfect) state.score += PERFECT_BONUS;
       hud.set('score', U.formatNumber(state.score));
       api.banner(perfect ? t('archery.perfect') : t('archery.outOfArrows'), { duration: 1300, tone: perfect ? 'gold' : '' });
-      scope.timeout(() => api.finish({ score: state.score, stars: starsFor(state.hits) }), 900);
+      api.finish({ score: state.score, stars: starsFor(state.hits), delay: 1600 });
     }
 
     /* ---------- input ---------- */

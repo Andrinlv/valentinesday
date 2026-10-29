@@ -149,7 +149,10 @@
 
         nameInput.value = save.hero.name || LQ.content.heroName;
 
+        let starting = false;
         const start = () => {
+          if (starting) return;
+          starting = true;
           const name = nameInput.value.trim().slice(0, 16) || LQ.content.heroName;
           save.hero = { name, avatar: selected, chosen: true };
           LQ.store.save();

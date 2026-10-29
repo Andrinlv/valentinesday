@@ -1097,8 +1097,12 @@ input:focus-visible {
   animation: fadeIn 0.2s ease both;
 }
 
+/* While fading out the backdrop keeps catching taps, so a double tap never reaches the game below. */
 .modal-backdrop.is-leaving {
   animation: fadeOut 0.2s ease forwards;
+}
+
+.modal-backdrop.is-passthrough {
   pointer-events: none;
 }
 

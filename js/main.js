@@ -127,6 +127,19 @@
         state.resumeHandlers.add(handler);
       },
 
+      /** Runs fn now, or right after the player resumes when the trial is paused. */
+      whenActive(fn) {
+        if (!state.paused) {
+          fn();
+          return;
+        }
+        const once = () => {
+          state.resumeHandlers.delete(once);
+          fn();
+        };
+        state.resumeHandlers.add(once);
+      },
+
       /** Frame loop; update(dt) is skipped while paused, render() always runs (keeps resizes crisp). */
       loop(update, render) {
         return U.createLoop(scope, (dt, now) => {
@@ -190,7 +203,10 @@
         return LQ.achievements.unlock(id);
       },
 
-      /** Ends the trial: saves progress and shows the results (unless result.silent). */
+      /**
+       * Ends the trial immediately (pausing or quitting is no longer possible) and shows the
+       * results after result.delay ms, unless result.silent.
+       */
       finish(result) {
         if (state.finished) return null;
         state.finished = true;
@@ -287,6 +303,20 @@
       }
     });
     window.addEventListener('pagehide', () => LQ.store.save());
+
+    /* Another tab saved newer progress: adopt it so this tab never overwrites it with stale data. */
+    window.addEventListener('storage', (event) => {
+      if (event.key !== LQ.store.KEY || event.storageArea !== globalThis.localStorage) return;
+      LQ.store.load();
+      const lang = LQ.store.data.settings.lang || LQ.content.language;
+      if (lang !== LQ.i18n.lang) {
+        LQ.i18n.setLang(lang);
+        LQ.events.emit('language');
+      }
+      app.applySettings();
+      LQ.events.emit('progress');
+      if (LQ.ui.scenes.current === 'map' && !LQ.ui.modal.isOpen()) LQ.ui.scenes.show('map', {}, { transition: false });
+    });
 
     document.getElementById('hud-pause').addEventListener('click', () => app.pause());
 

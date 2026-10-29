@@ -155,25 +155,45 @@
             chip('🪙', String(save.tokens), t('map.stats.tokens'))
           );
 
-          dock.textContent = '';
-          const dockButton = (icon, label, badge, onClick, highlight) => {
-            dock.append(U.el('button', {
-              type: 'button',
-              class: `dock-btn${highlight ? ' is-highlight' : ''}`,
-              attrs: { 'aria-label': badge ? `${label} (${badge})` : label },
-              on: { click: () => { LQ.audio.play('click'); onClick(); } }
-            }, [
-              U.el('span', { class: 'dock-btn__icon', text: icon, attrs: { 'aria-hidden': 'true' } }),
-              U.el('span', { class: 'dock-btn__label', text: label }),
-              badge ? U.el('span', { class: 'dock-btn__badge', text: badge, attrs: { 'aria-hidden': 'true' } }) : null
-            ]));
-          };
           const couponsLeft = LQ.content.coupons.length - save.coupons.filter((i) => i < LQ.content.coupons.length).length;
           const canSpin = save.tokens >= LQ.progress.SPIN_COST && couponsLeft > 0;
-          dockButton('💌', t('map.letter'), `${LQ.progress.letterPiecesFound()}/${LQ.progress.LETTER_PIECES}`, () => LQ.ui.menus.openLetter());
-          dockButton('🎰', t('map.gacha'), canSpin ? '!' : '', () => LQ.ui.gacha.open('machine'), canSpin);
-          dockButton('🏆', t('map.trophies'), `${LQ.achievements.unlockedCount()}/${LQ.achievements.LIST.length}`, () => LQ.ui.menus.openTrophies());
-          dockButton('⚙️', t('map.settings'), '', () => LQ.ui.menus.openSettings());
+          updateDock('letter', t('map.letter'), `${LQ.progress.letterPiecesFound()}/${LQ.progress.LETTER_PIECES}`);
+          updateDock('gacha', t('map.gacha'), canSpin ? '!' : '', canSpin);
+          updateDock('trophies', t('map.trophies'), `${LQ.achievements.unlockedCount()}/${LQ.achievements.LIST.length}`);
+          updateDock('settings', t('map.settings'), '');
+        }
+
+        /* The dock is built once and updated in place, so keyboard focus survives updates. */
+        const dockButtons = {};
+        dock.textContent = '';
+        for (const def of [
+          { key: 'letter', icon: '💌', open: () => LQ.ui.menus.openLetter() },
+          { key: 'gacha', icon: '🎰', open: () => LQ.ui.gacha.open('machine') },
+          { key: 'trophies', icon: '🏆', open: () => LQ.ui.menus.openTrophies() },
+          { key: 'settings', icon: '⚙️', open: () => LQ.ui.menus.openSettings() }
+        ]) {
+          const label = U.el('span', { class: 'dock-btn__label' });
+          const badge = U.el('span', { class: 'dock-btn__badge', attrs: { 'aria-hidden': 'true' } });
+          const button = U.el('button', { type: 'button', class: 'dock-btn' }, [
+            U.el('span', { class: 'dock-btn__icon', text: def.icon, attrs: { 'aria-hidden': 'true' } }),
+            label,
+            badge
+          ]);
+          scope.on(button, 'click', () => {
+            LQ.audio.play('click');
+            def.open();
+          });
+          dockButtons[def.key] = { button, label, badge };
+          dock.append(button);
+        }
+
+        function updateDock(key, text, badgeText, highlight) {
+          const entry = dockButtons[key];
+          entry.label.textContent = text;
+          entry.badge.textContent = badgeText;
+          entry.badge.hidden = !badgeText;
+          entry.button.classList.toggle('is-highlight', Boolean(highlight));
+          entry.button.setAttribute('aria-label', badgeText ? `${text} (${badgeText})` : text);
         }
 
         function nodeState(levelId) {

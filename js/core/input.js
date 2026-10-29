@@ -43,7 +43,9 @@
       const dir = KEY_DIRS[event.code];
       if (!dir || !isActive()) return;
       event.preventDefault();
-      if (!event.repeat) press(`key:${event.code}`, dir);
+      const source = `key:${event.code}`;
+      /* Auto-repeat re-registers a key that was pressed while input was inactive. */
+      if (!event.repeat || !held.some((entry) => entry.source === source)) press(source, dir);
     });
     scope.on(window, 'keyup', (event) => {
       if (KEY_DIRS[event.code]) release(`key:${event.code}`);
@@ -167,11 +169,9 @@
         return startEdge;
       },
 
+      /** Forgets a pending swipe run; physically held keys and the touched pad stay active. */
       reset() {
-        held.length = 0;
         swipeDir = null;
-        gamepadDir = null;
-        if (options.pad) options.pad.dataset.dir = '';
       }
     };
   }

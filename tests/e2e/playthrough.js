@@ -190,8 +190,11 @@ async function playQuiz(page, profile) {
       await page.keyboard.press('Escape');
       await page.waitForSelector('.modal--pause');
       await shot(page, profile, 'pause');
-      await page.click('.modal--pause .modal__actions .btn--primary');
+      await page.dblclick('.modal--pause .modal__actions .btn--primary');
       await page.waitForFunction(() => !LQ.ui.modal.isOpen() && !LQ.debug.session.paused);
+      await page.waitForTimeout(300);
+      const untouched = await page.evaluate(() => LQ.debug.session.instance.debug.state);
+      assert.equal(untouched.mistakes + (untouched.locked ? 1 : 0), 0, 'a double click on RESUME never reaches the quiz');
       const wrong = (questions[0] + 1) % (await page.evaluate(() => LQ.content.quiz[0].answers.length));
       await page.click(`.quiz-answer:nth-child(${wrong + 1})`);
       await page.waitForTimeout(250);
@@ -208,6 +211,11 @@ async function playQuiz(page, profile) {
     await tapElement(page, profile, `.quiz-answer:nth-child(${questions[index] + 1})`);
     await page.waitForTimeout(100);
     await tapElement(page, profile, `.quiz-answer:nth-child(${questions[index] + 1})`);
+  }
+  if (!profile.touch) {
+    await page.keyboard.press('Escape');
+    await page.waitForTimeout(400);
+    assert.equal(await page.locator('.modal--pause').count(), 0, 'no pause between the last answer and the results');
   }
   await continueFromResults(page, profile, 'quiz');
 }
@@ -460,8 +468,24 @@ async function runProfile(browser, profile) {
   await tapElement(page, profile, '.hero-card:nth-child(3)');
   await page.fill('#hero-name', 'Louisa');
   await shot(page, profile, 'select');
-  await tapElement(page, profile, '#select-go');
+  await page.evaluate(() => {
+    window.__sceneRequests = [];
+    const show = LQ.ui.scenes.show.bind(LQ.ui.scenes);
+    LQ.ui.scenes.show = (...request) => {
+      window.__sceneRequests.push(request[0]);
+      return show(...request);
+    };
+  });
+  if (profile.touch) {
+    await tapElement(page, profile, '#select-go');
+  } else {
+    await page.focus('#hero-name');
+    await page.keyboard.press('Enter');
+    await page.keyboard.press('Enter');
+  }
   await waitForScene(page, 'intro');
+  await page.waitForTimeout(500);
+  assert.deepEqual(await page.evaluate(() => window.__sceneRequests), ['intro'], 'the quest starts exactly once');
   await page.waitForTimeout(600);
   await tapElement(page, profile, '#intro-box');
   await tapElement(page, profile, '#intro-box');

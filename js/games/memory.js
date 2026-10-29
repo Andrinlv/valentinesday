@@ -117,7 +117,7 @@
       const score = scoreFor(state.matchPoints, state.moves, state.elapsed);
       if (state.moves <= EIDETIC_MOVES && !state.peekUsed) api.achieve('eidetic');
       api.banner(t('memory.allFound'), { duration: 1400, tone: 'gold' });
-      scope.timeout(() => api.finish({ score, stars: starsFor(state.moves) }), 900);
+      api.finish({ score, stars: starsFor(state.moves), delay: 1600 });
     }
 
     function onMatch(a, b) {
