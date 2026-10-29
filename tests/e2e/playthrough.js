@@ -506,6 +506,7 @@ async function checkMenus(page, profile) {
   await page.waitForFunction(() => LQ.i18n.lang === 'en');
   await page.keyboard.press('Escape');
   await page.waitForFunction(() => !LQ.ui.modal.isOpen());
+  await page.waitForSelector('.modal-backdrop', { state: 'detached' });
   await shot(page, profile, 'map-complete');
 
   const map = await page.evaluate(() => {

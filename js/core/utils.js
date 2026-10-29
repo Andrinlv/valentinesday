@@ -180,14 +180,16 @@
 
     /**
      * Resolves once the given CSS font specs are usable: waits for the non-blocking font stylesheet
-     * (#font-css), then loads the faces. Never takes longer than timeoutMs.
+     * (#font-css, which records data-state="loaded|failed"), then loads the faces. Never takes longer
+     * than timeoutMs, and returns at once when the stylesheet already failed (offline).
      */
     whenFontsReady(specs, timeoutMs) {
       if (typeof document === 'undefined' || !document.fonts || typeof document.fonts.load !== 'function') {
         return Promise.resolve();
       }
       const link = document.getElementById('font-css');
-      const sheetReady = !link || link.sheet ? Promise.resolve() : new Promise((resolve) => {
+      const settled = !link || Boolean(link.dataset.state);
+      const sheetReady = settled ? Promise.resolve() : new Promise((resolve) => {
         link.addEventListener('load', resolve, { once: true });
         link.addEventListener('error', resolve, { once: true });
       });

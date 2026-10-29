@@ -77,7 +77,7 @@ hint in the browser console (F12).
 | Cupid's Arrow | Drag back and release, or ←/→ aim, ↑/↓ power, Space shoot | Pull back and release |
 | Quiz | Click or keys 1–6 | Tap |
 | Labyrinth | Arrow keys / WASD, gamepad | Swipe or on-screen pad |
-| Pause | Escape or P | ❚❚ button |
+| Pause | Escape or P (Start on a gamepad) | ❚❚ button |
 
 The game pauses automatically when the tab is hidden.
 
