@@ -684,10 +684,23 @@ async function checkWalkMeetsOtherTab(browser) {
     assert.ok(result.offset < 4, `${moment}: the hero stands at the first trial again (${result.offset}px off)`);
   }
 
-  /* An open level card whose trial another tab locks again closes itself. */
+  /* An open level card whose trial another tab locks again closes itself... */
   await page.waitForFunction(() => LQ.ui.scenes.current === 'map' && !LQ.ui.scenes.transitioning && !LQ.ui.modal.isOpen());
   await page.click('.map-node:nth-child(3)');
   await page.waitForSelector('.modal--level');
+  await other.evaluate((storageKey) => localStorage.removeItem(storageKey), key);
+  await page.waitForFunction(() => !document.querySelector('.modal--level'), null, { timeout: 3000 });
+
+  /* ...and so does the card that opens when the hero arrives at a newly unlocked trial. */
+  await page.waitForFunction(() => LQ.ui.scenes.current === 'map' && !LQ.ui.scenes.transitioning && !LQ.ui.modal.isOpen());
+  await page.evaluate(() => LQ.app.startLevel('catch'));
+  await waitForScene(page, 'game');
+  await waitForPhase(page, 'play');
+  await page.evaluate(() => LQ.debug.session.instance.debug.endNow());
+  await page.waitForSelector('.modal--results', { timeout: 20000 });
+  await page.waitForTimeout(1600);
+  await page.click('.modal--results .modal__actions .btn--primary');
+  await page.waitForSelector('.modal--level', { timeout: 10000 });
   await other.evaluate((storageKey) => localStorage.removeItem(storageKey), key);
   await page.waitForFunction(() => !document.querySelector('.modal--level'), null, { timeout: 3000 });
   await other.close();
@@ -774,16 +787,19 @@ async function runProfile(browser, profile) {
   await page.keyboard.type('X');
   assert.equal(await page.inputValue('#hero-name'), 'ABCDEFGHIJKLMNOP', 'typing into a full name never cuts its end');
   if (!profile.touch) {
-    /* IME text committed after the caret moved away (as on Android) is still cut where it was typed. */
+    /* IME text typed mid-name and committed after the caret moved away (as on Android) is cut where it was typed. */
     await page.fill('#hero-name', 'ABCDEFGHIJKLMNO');
-    await page.evaluate(() => document.getElementById('hero-name').setSelectionRange(15, 15));
+    await page.evaluate(() => document.getElementById('hero-name').setSelectionRange(5, 5));
     const cdp = await page.context().newCDPSession(page);
     await cdp.send('Input.imeSetComposition', { text: 'xyz', selectionStart: 3, selectionEnd: 3 });
     const field = await page.locator('#hero-name').boundingBox();
     await page.mouse.click(field.x + 30, field.y + field.height / 2);
+    const tapped = await page.evaluate(() => document.getElementById('hero-name').selectionEnd);
     await page.evaluate(() => document.getElementById('hero-name').blur());
     await cdp.detach();
-    assert.equal(await page.inputValue('#hero-name'), 'ABCDEFGHIJKLMNOx', 'an IME commit keeps the start of the name');
+    assert.equal(await page.inputValue('#hero-name'), 'ABCDExFGHIJKLMNO', 'an IME commit is cut where it was typed');
+    assert.ok(tapped < 5, `the tap moved the caret before the composition (${tapped})`);
+    assert.equal(await page.evaluate(() => document.getElementById('hero-name').selectionEnd), tapped, 'the caret stays where it was tapped');
   }
   await page.fill('#hero-name', 'Jordan');
   await shot(page, profile, 'select');

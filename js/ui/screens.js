@@ -152,15 +152,27 @@
         /*
          * Like maxlength, but counted in visible characters (an emoji is one): the overflow is dropped from
          * the text just typed or pasted, the rest of the name stays. Nothing is cut while an IME composes;
-         * its commit is cut where the composed text ends, because on Android the caret may have moved away.
+         * its commit is cut where the committed text ends. That is not always the caret (on Android the
+         * player may have tapped elsewhere first), nor always the last composing position (some browsers
+         * replace the composition when committing), so the committed text is located from where it started.
          */
+        let compositionStart = null;
         let composedEnd = null;
+
+        function committedEnd(event) {
+          const data = typeof event.data === 'string' ? event.data : '';
+          const start = compositionStart;
+          if (start !== null && nameInput.value.slice(start, start + data.length) === data) return start + data.length;
+          return composedEnd;
+        }
+
         const clampName = (event) => {
           if (event.isComposing) {
             composedEnd = nameInput.selectionEnd;
             return;
           }
-          const tracked = event.type === 'compositionend' ? composedEnd : null;
+          const tracked = event.type === 'compositionend' ? committedEnd(event) : null;
+          compositionStart = null;
           composedEnd = null;
           const value = nameInput.value;
           const extra = U.graphemes(value).length - LQ.store.NAME_MAX;
@@ -175,6 +187,10 @@
           nameInput.value = next;
           nameInput.setSelectionRange(caret, caret);
         };
+        scope.on(nameInput, 'compositionstart', () => {
+          compositionStart = nameInput.selectionStart;
+          composedEnd = null;
+        });
         scope.on(nameInput, 'input', clampName);
         scope.on(nameInput, 'compositionend', clampName);
 
