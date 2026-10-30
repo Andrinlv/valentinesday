@@ -214,9 +214,24 @@ async function playQuiz(page, profile) {
     }
     if (index === 1 && !profile.touch) {
       await page.keyboard.press(`Alt+${questions[index] + 1}`);
+      await page.keyboard.press('Control+KeyP');
       await page.waitForTimeout(150);
       const state = await page.evaluate(() => LQ.debug.session.instance.debug.state);
       assert.ok(state.index === 1 && !state.locked, 'Alt+digit is left to the browser');
+      assert.equal(await page.evaluate(() => LQ.debug.session.paused), false, 'Ctrl+P prints instead of pausing');
+
+      /* A held digit answers once; its auto-repeat must not answer the next question. */
+      const digit = String(questions[index] + 1);
+      await page.keyboard.down(digit);
+      for (let repeat = 0; repeat < 40; repeat++) {
+        await page.waitForTimeout(40);
+        await page.keyboard.down(digit);
+      }
+      await page.keyboard.up(digit);
+      const held = await page.evaluate(() => LQ.debug.session.instance.debug.state);
+      assert.equal(held.index, 2, 'the held digit answered its question');
+      assert.equal(held.mistakes, state.mistakes, 'auto-repeat never answers the next question');
+      continue;
     }
     if (index === 0 && profile.touch) {
       await tapElement(page, profile, '#hud-pause');
@@ -552,13 +567,14 @@ async function checkHiddenDuringTransition(page) {
   await waitForScene(page, 'map');
 }
 
-/** Another tab saving settings leaves the map alone; new progress redraws it. */
+/** Progress saved by another tab shows up on the map at once, redrawn in place, even behind an open dialog. */
 async function checkCrossTabSync(page, context) {
   await page.waitForFunction(() => !LQ.ui.modal.isOpen() && !LQ.ui.scenes.transitioning);
-  await page.evaluate(() => { document.querySelector('.map-node').dataset.marker = 'before'; });
+  await page.evaluate(() => { document.querySelector('.map-node').dataset.marker = 'kept'; });
   const other = await context.newPage();
   await other.goto(`file://${path.join(ROOT, 'README.md')}`);
   const key = await page.evaluate(() => LQ.store.KEY);
+
   const sfx = await page.evaluate(() => LQ.store.data.settings.sfx);
   await other.evaluate((storageKey) => {
     const save = JSON.parse(localStorage.getItem(storageKey));
@@ -566,16 +582,22 @@ async function checkCrossTabSync(page, context) {
     localStorage.setItem(storageKey, JSON.stringify(save));
   }, key);
   await page.waitForFunction((was) => LQ.store.data.settings.sfx !== was, sfx, { timeout: 5000 });
-  assert.equal(await page.locator('.map-node[data-marker]').count(), 1, 'a settings change does not redraw the map');
-  const tokens = await page.evaluate(() => LQ.store.data.tokens);
-  await other.evaluate((storageKey) => {
+
+  await page.click('.dock-btn:nth-child(3)');
+  await page.waitForSelector('.trophy-list');
+  const wanted = (await page.evaluate(() => LQ.store.data.levels.catch.stars)) % 3 + 1;
+  await other.evaluate(([storageKey, stars]) => {
     const save = JSON.parse(localStorage.getItem(storageKey));
     save.settings.sfx = !save.settings.sfx;
-    save.tokens += 5;
+    save.levels.catch.stars = stars;
     localStorage.setItem(storageKey, JSON.stringify(save));
-  }, key);
-  await page.waitForFunction((was) => LQ.store.data.tokens === was + 5, tokens, { timeout: 5000 });
-  await page.waitForFunction(() => !document.querySelector('.map-node[data-marker]'), null, { timeout: 5000 });
+  }, [key, wanted]);
+  await page.waitForFunction((stars) => document.querySelector('.map-node .map-node__stars').textContent ===
+    '★'.repeat(stars) + '☆'.repeat(3 - stars), wanted, { timeout: 5000 });
+  assert.equal(await page.locator('.trophy-list').count(), 1, 'the open dialog stays open');
+  assert.equal(await page.locator('.map-node[data-marker="kept"]').count(), 1, 'the nodes are updated in place');
+  await page.keyboard.press('Escape');
+  await page.waitForFunction(() => !LQ.ui.modal.isOpen());
   await other.close();
 }
 
@@ -590,10 +612,19 @@ async function checkLandscape(page, profile) {
   const maze = await page.evaluate(() => {
     const canvas = document.querySelector('.game-canvas--maze').getBoundingClientRect();
     const pad = document.querySelector('.dpad').getBoundingClientRect();
-    const hero = LQ.debug.session.instance.debug.heroOnScreen();
-    return { heroX: canvas.left + hero.x, padRight: pad.right };
+    const debug = LQ.debug.session.instance.debug;
+    const hero = debug.heroOnScreen();
+    const world = debug.worldOnScreen();
+    return {
+      heroX: canvas.left + hero.x,
+      worldLeft: canvas.left + world.left,
+      worldCenter: canvas.left + (world.left + world.right) / 2,
+      bandCenter: (pad.right + 12 + canvas.right) / 2,
+      padRight: pad.right
+    };
   });
-  assert.ok(maze.heroX > maze.padRight, `the hero stays beside the pad (${JSON.stringify(maze)})`);
+  assert.ok(maze.heroX > maze.padRight && maze.worldLeft >= maze.padRight, `the maze stays beside the pad (${JSON.stringify(maze)})`);
+  assert.ok(Math.abs(maze.worldCenter - maze.bandCenter) < 2, `the maze is centred in the free band (${JSON.stringify(maze)})`);
   await shot(page, profile, 'landscape-maze');
   await tapElement(page, profile, '#hud-pause');
   await page.waitForSelector('.modal--pause');
@@ -604,11 +635,17 @@ async function checkLandscape(page, profile) {
   await waitForScene(page, 'game');
   await page.waitForSelector('.final-answers:not([hidden])', { timeout: 15000 });
   await page.waitForTimeout(600);
-  const fits = await page.evaluate(() => ['.final-bubble__question', '.final-yes', '.final-no'].every((selector) => {
-    const rect = document.querySelector(selector).getBoundingClientRect();
-    return rect.top >= 0 && rect.bottom <= window.innerHeight && rect.height > 0;
-  }));
-  assert.ok(fits, 'question and both answers are visible in landscape');
+  const finale = await page.evaluate(() => {
+    const rect = (selector) => document.querySelector(selector).getBoundingClientRect();
+    const onScreen = ['.final-bubble__question', '.final-yes', '.final-no'].every((selector) => {
+      const box = rect(selector);
+      return box.top >= 0 && box.bottom <= window.innerHeight && box.height > 0;
+    });
+    const question = rect('.final-bubble__question');
+    return { onScreen, inBubble: question.bottom <= rect('.final-bubble').bottom && question.bottom <= rect('.final-couple').top };
+  });
+  assert.ok(finale.onScreen, 'question and both answers are visible in landscape');
+  assert.ok(finale.inBubble, 'the question stays inside its bubble, above the couple');
   await shot(page, profile, 'landscape-final');
   await tapElement(page, profile, '#hud-pause');
   await page.waitForSelector('.modal--pause');
@@ -636,6 +673,8 @@ async function runProfile(browser, profile) {
   await tapElement(page, profile, '#start-btn');
   await waitForScene(page, 'select');
   await tapElement(page, profile, '.hero-card:nth-child(3)');
+  await page.fill('#hero-name', '💖'.repeat(20));
+  assert.equal(Array.from(await page.inputValue('#hero-name')).length, 16, 'names keep at most 16 visible characters');
   await page.fill('#hero-name', 'Jordan');
   await shot(page, profile, 'select');
   await page.evaluate(() => {

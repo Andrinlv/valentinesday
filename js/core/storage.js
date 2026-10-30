@@ -8,6 +8,7 @@
   const LEVEL_IDS = Object.freeze(['catch', 'memory', 'archery', 'quiz', 'maze', 'final']);
   const MAX_SCORE = 10000000;
   const MAX_TOKENS = 9999;
+  const NAME_MAX = 16; // user-perceived characters
 
   const isObject = (value) => value !== null && typeof value === 'object' && !Array.isArray(value);
   const toBool = (value, fallback) => (typeof value === 'boolean' ? value : fallback);
@@ -41,7 +42,7 @@
     save.introSeen = toBool(raw.introSeen, false);
 
     if (isObject(raw.hero)) {
-      save.hero.name = typeof raw.hero.name === 'string' ? U.truncate(raw.hero.name.trim(), 16).trimEnd() : '';
+      save.hero.name = typeof raw.hero.name === 'string' ? U.truncate(raw.hero.name.trim(), NAME_MAX).trimEnd() : '';
       save.hero.avatar = toInt(raw.hero.avatar, 0, 3, 0);
       save.hero.chosen = toBool(raw.hero.chosen, false);
     }
@@ -101,6 +102,7 @@
     VERSION,
     LEVEL_IDS,
     MAX_TOKENS,
+    NAME_MAX,
     sanitize,
     createDefault,
     data: createDefault(),

@@ -10,6 +10,7 @@
   const AVATAR_LIFT = 26; // the hero stands slightly above the node centre
   const AVATAR_HEADROOM = AVATAR_LIFT + 16 * AVATAR_SCALE + 8; // room above a node for the hero standing on it
   const MIN_NODE_GAP = 84; // node diameter plus a little air
+  const NODE_STATES = Object.freeze(['locked', 'done', 'current', 'open']);
 
   function starText(count) {
     return '★'.repeat(count) + '☆'.repeat(3 - count);
@@ -235,26 +236,16 @@
           });
         }
 
-        function renderNodes() {
+        /* The nodes are built once and updated in place, so focus and running animations survive updates. */
+        function buildNodes() {
           nodeLayer.textContent = '';
           nodes = levels.map((level, index) => {
-            const state = LQ.progress.levelState(level.id);
-            const status = nodeState(level.id);
             const isFinal = level.id === 'final';
-            const title = t(`level.${level.id}.title`);
-            const label = `${isFinal ? t('map.finale') : t('map.trial', { n: index + 1 })}: ${title}` +
-              (!isFinal && state.completed ? `, ${state.stars}/3 ★` : '');
-            const node = U.el('button', {
-              type: 'button',
-              class: `map-node is-${status}${isFinal ? ' is-final' : ''}`,
-              attrs: { 'aria-label': status === 'locked' ? `${label} 🔒` : label }
-            }, [
-              U.el('span', { class: 'map-node__icon', text: status === 'locked' ? '🔒' : level.icon, attrs: { 'aria-hidden': 'true' } }),
+            const node = U.el('button', { type: 'button', class: `map-node${isFinal ? ' is-final' : ''}` }, [
+              U.el('span', { class: 'map-node__icon', attrs: { 'aria-hidden': 'true' } }),
               U.el('span', { class: 'map-node__num', text: isFinal ? '♥' : String(index + 1), attrs: { 'aria-hidden': 'true' } }),
-              !isFinal && status !== 'locked'
-                ? U.el('span', { class: 'map-node__stars', text: starText(state.stars), attrs: { 'aria-hidden': 'true' } })
-                : null,
-              U.el('span', { class: 'map-node__name', text: title, attrs: { 'aria-hidden': 'true' } })
+              U.el('span', { class: 'map-node__stars', attrs: { 'aria-hidden': 'true' } }),
+              U.el('span', { class: 'map-node__name', attrs: { 'aria-hidden': 'true' } })
             ]);
             scope.on(node, 'click', () => {
               if (walk) return;
@@ -267,10 +258,32 @@
               LQ.audio.play('select');
               openLevelCard(level.id);
             });
+            /* Lets the current-trial pulse take over again once the unlock pop has played. */
+            scope.on(node, 'animationend', (event) => {
+              if (event.animationName === 'unlockPop') node.classList.remove('is-unlocking');
+            });
             nodeLayer.append(node);
             return node;
           });
-          positionNodes();
+        }
+
+        function updateNodes() {
+          levels.forEach((level, index) => {
+            const node = nodes[index];
+            const state = LQ.progress.levelState(level.id);
+            const status = nodeState(level.id);
+            const isFinal = level.id === 'final';
+            const title = t(`level.${level.id}.title`);
+            const label = `${isFinal ? t('map.finale') : t('map.trial', { n: index + 1 })}: ${title}` +
+              (!isFinal && state.completed ? `, ${state.stars}/3 ★` : '');
+            NODE_STATES.forEach((name) => node.classList.toggle(`is-${name}`, name === status));
+            node.setAttribute('aria-label', status === 'locked' ? `${label} 🔒` : label);
+            node.querySelector('.map-node__icon').textContent = status === 'locked' ? '🔒' : level.icon;
+            const stars = node.querySelector('.map-node__stars');
+            stars.hidden = isFinal || status === 'locked';
+            stars.textContent = starText(state.stars);
+            node.querySelector('.map-node__name').textContent = title;
+          });
         }
 
         function renderPath() {
@@ -331,7 +344,7 @@
               pendingUnlock = null;
               avatarDir = 'down';
               renderPath();
-              renderNodes();
+              updateNodes();
               const node = nodes[target];
               node.classList.add('is-unlocking');
               const rect = node.getBoundingClientRect();
@@ -344,14 +357,27 @@
           };
         }
 
-        scope.add(LQ.events.on('progress', renderHud));
+        /* Progress can change while the map is showing (gacha, trophies, another tab): redraw in place. */
+        function refresh() {
+          renderHud();
+          face.show(LQ.sprites.hero(save.hero.avatar, 'down', 0));
+          if (walk || pendingUnlock) return; // the hero's arrival redraws everything
+          standing = LQ.progress.currentLevelId();
+          renderPath();
+          updateNodes();
+          avatarPos = { ...points[LQ.progress.levelIndex(standing)] };
+          placeAvatar();
+        }
+
+        scope.add(LQ.events.on('progress', refresh));
         scope.add(LQ.events.on('language', () => {
           renderHud();
-          renderNodes();
+          updateNodes();
         }));
 
+        buildNodes();
         renderHud();
-        renderNodes();
+        updateNodes();
         U.observeResize(scope, world, layout);
         layout();
 

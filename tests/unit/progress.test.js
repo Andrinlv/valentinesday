@@ -104,12 +104,13 @@ test('letter pieces keep line breaks and still reveal something for very short l
   assert.equal(longChunks.join(''), long);
   assert.ok(longChunks.every(Boolean));
 
-  const short = 'I love you 💖';
-  const shortChunks = progress.letterChunks(short);
-  assert.equal(shortChunks.length, progress.LETTER_PIECES);
-  assert.equal(shortChunks.join(''), short);
-  assert.ok(shortChunks.every(Boolean), 'every piece reveals text');
-  assert.ok(shortChunks.every((chunk) => !/[\uD800-\uDBFF]$/.test(chunk)), 'no piece ends inside an emoji');
+  for (const short of ['I love you 💖', 'I love you!', 'Hi, you 👩‍❤️‍👨!']) {
+    const shortChunks = progress.letterChunks(short);
+    assert.equal(shortChunks.length, progress.LETTER_PIECES);
+    assert.equal(shortChunks.join(''), short);
+    assert.ok(shortChunks.every((chunk) => chunk.trim()), `every piece of "${short}" reveals text`);
+    assert.ok(shortChunks.every((chunk) => !/[\uD800-\uDBFF]$/.test(chunk)), 'no piece ends inside an emoji');
+  }
 });
 
 test('tokens can be spent but never go negative', () => {

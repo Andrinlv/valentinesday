@@ -149,11 +149,24 @@
 
         nameInput.value = save.hero.name || LQ.content.heroName;
 
+        /* Counted in visible characters (an emoji is one), unlike maxlength; never mid-composition (IME). */
+        const clampName = (event) => {
+          if (event.isComposing) return;
+          const value = nameInput.value;
+          const short = U.truncate(value, LQ.store.NAME_MAX);
+          if (short === value) return;
+          const caret = Math.min(nameInput.selectionStart === null ? short.length : nameInput.selectionStart, short.length);
+          nameInput.value = short;
+          nameInput.setSelectionRange(caret, caret);
+        };
+        scope.on(nameInput, 'input', clampName);
+        scope.on(nameInput, 'compositionend', clampName);
+
         let starting = false;
         const start = () => {
           if (starting) return;
           starting = true;
-          const name = U.truncate(nameInput.value.trim(), 16) || LQ.content.heroName;
+          const name = U.truncate(nameInput.value.trim(), LQ.store.NAME_MAX).trimEnd() || LQ.content.heroName;
           save.hero = { name, avatar: selected, chosen: true };
           LQ.store.save();
           LQ.audio.play('powerup');

@@ -166,7 +166,8 @@
 
     scope.on(window, 'keydown', (event) => {
       if (state.locked || state.over || api.paused || LQ.ui.modal.isOpen()) return;
-      if (event.ctrlKey || event.metaKey || event.altKey) return;
+      /* Auto-repeat of a held digit would answer the next question before it was read. */
+      if (event.repeat || event.ctrlKey || event.metaKey || event.altKey) return;
       const digit = Number.parseInt(event.key, 10);
       if (Number.isInteger(digit) && digit >= 1 && digit <= buttons.length) {
         event.preventDefault();

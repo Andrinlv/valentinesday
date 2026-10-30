@@ -975,6 +975,18 @@
           const s = view.scale;
           return { x: (offX + (p.x + 0.5) * TILE * s) / view.dpr, y: (offY + (p.y + 0.5) * TILE * s) / view.dpr };
         },
+        /** The maze's rectangle in CSS pixels, relative to the canvas. */
+        worldOnScreen() {
+          const { offX, offY } = camera();
+          const m = maze();
+          const size = TILE * view.scale;
+          return {
+            left: offX / view.dpr,
+            top: offY / view.dpr,
+            right: (offX + m.width * size) / view.dpr,
+            bottom: (offY + m.height * size) / view.dpr
+          };
+        },
         /** Shortest list of directions from the player to (x, y). */
         pathTo(x, y) {
           const m = maze();

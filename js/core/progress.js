@@ -107,12 +107,18 @@
 
     /**
      * The letter split into LETTER_PIECES consecutive chunks of roughly equal size. Joined they give back
-     * the exact text, line breaks included. Letters with fewer words than pieces are split by character,
-     * so every piece still reveals something.
+     * the exact text, line breaks included. Letters with fewer words than pieces are split by character
+     * (spaces ride along with the character before them), so every piece still reveals something.
      */
     letterChunks(letter = LQ.content.finalLetter) {
       let units = letter.match(/\S+\s*/g) || [];
-      if (units.length < LETTER_PIECES) units = U.graphemes(letter);
+      if (units.length < LETTER_PIECES) {
+        units = [];
+        for (const char of U.graphemes(letter)) {
+          if (!char.trim() && units.length) units[units.length - 1] += char;
+          else units.push(char);
+        }
+      }
       const chunks = [];
       for (let i = 0; i < LETTER_PIECES; i++) {
         const start = Math.round((i * units.length) / LETTER_PIECES);
