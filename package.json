@@ -1,0 +1,20 @@
+{
+  "name": "valentinesday",
+  "version": "2.0.0",
+  "private": true,
+  "description": "Love Quest: a cozy retro Valentine's adventure with six mini-games, a pixel labyrinth and lots of love.",
+  "scripts": {
+    "start": "npx --yes http-server -c-1 -p 8080 .",
+    "lint": "eslint js tests eslint.config.js",
+    "test": "node --test \"tests/unit/*.test.js\"",
+    "test:e2e": "node tests/e2e/playthrough.js",
+    "test:all": "npm run lint && npm test && npm run test:e2e"
+  },
+  "devDependencies": {
+    "eslint": "^10.1.0",
+    "playwright": "^1.63.0"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

@@ -1,70 +1,129 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Valentinesday</title>
-    <link rel="stylesheet" href="style.css">
-    <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Quicksand:wght@500;700&display=swap" rel="stylesheet">
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <meta name="theme-color" content="#2a1520">
+  <meta name="description" content="Love Quest: a cozy retro Valentine's adventure.">
+  <title>Valentinesday · Love Quest</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 11 10' shape-rendering='crispEdges'%3E%3Cpath fill='%235e1f2c' d='M1 0h3v1H1zM7 0h3v1H7zM0 1h1v4H0zM4 1h1v1H4zM6 1h1v1H6zM10 1h1v4h-1zM5 2h1v1H5zM1 5h1v1H1zM9 5h1v1H9zM2 6h1v1H2zM8 6h1v1H8zM3 7h1v1H3zM7 7h1v1H7zM4 8h1v1H4zM6 8h1v1H6zM5 9h1v1H5z'/%3E%3Cpath fill='%23e8576f' d='M1 1h3v1H1zM7 1h3v1H7zM1 2h4v1H1zM6 2h4v1H6zM1 3h9v2H1zM2 5h7v1H2zM3 6h5v1H3zM4 7h3v1H4zM5 8h1v1H5z'/%3E%3Cpath fill='%23ffd9de' d='M2 2h2v1H2zM2 3h1v1H2z'/%3E%3C/svg%3E">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <!-- Loads without blocking the first paint, so a slow or unreachable font server never leaves the page blank. -->
+  <link id="font-css" href="https://fonts.googleapis.com/css2?family=Caveat:wght@500;700&family=Press+Start+2P&family=Quicksand:wght@500;600;700&display=swap" rel="stylesheet" media="print" onload="this.media='all'; this.dataset.state='loaded'" onerror="this.dataset.state='failed'">
+  <link rel="stylesheet" href="css/main.css">
+  <link rel="stylesheet" href="css/games.css">
 </head>
 <body>
+  <div id="app" class="app">
+    <audio id="bg-music" loop preload="metadata" src="assets/audio/backgroundmusic.mp3"></audio>
 
-    <audio id="bg-music" loop>
-        <source src="backgroundmusic.mp3" type="audio/mpeg">
-    </audio>
+    <div class="ambient" id="ambient" aria-hidden="true"></div>
 
-    <section id="scene-loading" class="scene active" style="background-image: url('loadingscreen.jpg');">
-        <div class="glass-panel center-content">
-            <h1 id="title-trigger" class="retro-text heartbeat">LOVE LOADING...</h1>
-            <div class="loading-bar-container">
-                <div id="loading-bar" class="loading-bar"></div>
-            </div>
-            <p id="loading-text">Hold your hands and tight them...are you ready?</p>
-            <button id="start-btn" class="retro-btn hidden">START ADVENTURE</button>
+    <!-- Loading screen -->
+    <section id="scene-boot" class="scene backdrop backdrop--coast" aria-labelledby="boot-title">
+      <div class="panel glass boot-card">
+        <h1 id="boot-title" class="pixel-title heartbeat" data-i18n="boot.loading">LOVE LOADING...</h1>
+        <div class="loading-bar" id="loading-bar" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" aria-labelledby="boot-title">
+          <div class="loading-bar__fill" id="loading-fill"></div>
         </div>
+        <p class="boot-card__text" id="loading-text" data-i18n="boot.hint">Hold hands and hold on tight... are you ready?</p>
+        <button type="button" class="btn btn--primary btn--blink" id="start-btn" hidden data-i18n="boot.start">PRESS START</button>
+      </div>
     </section>
 
-    <section id="scene-level1" class="scene" style="background-image: url('background1.jpg');">
-        <div class="top-bar glass-panel">
-            <span>Lvl 1: CATCH LOVE</span>
-            <span>Hearts: <span id="heart-count">0</span>/5</span>
-        </div>
-        <div id="hearts-container"></div>
-        <div id="msg-popup" class="glass-panel popup hidden">
-            <p id="popup-text"></p>
-        </div>
+    <!-- Hero selection -->
+    <section id="scene-select" class="scene backdrop backdrop--ruins" aria-labelledby="select-title">
+      <div class="panel glass select-card">
+        <h2 id="select-title" class="pixel-title" data-i18n="select.title">CHOOSE YOUR HERO</h2>
+        <p class="subtitle" data-i18n="select.subtitle">Who will walk the path of love?</p>
+        <div class="hero-grid" id="hero-grid" role="radiogroup" aria-labelledby="select-title"></div>
+        <label class="name-field" for="hero-name">
+          <span class="name-field__label" data-i18n="select.nameLabel">Your name</span>
+          <input id="hero-name" class="name-field__input" type="text" autocomplete="off" spellcheck="false" enterkeyhint="go">
+        </label>
+        <button type="button" class="btn btn--primary" id="select-go" data-i18n="select.go">START QUEST</button>
+      </div>
     </section>
 
-    <section id="scene-memory" class="scene" style="background-image: url('background1.jpg');">
-        <div class="glass-panel center-content">
-            <h2>Memory Match</h2>
-            <p style="font-size: 0.8rem; margin-bottom: 10px;">Find the pairs!</p>
-            <div class="memory-grid" id="memory-board">
-                </div>
-        </div>
+    <!-- Story intro -->
+    <section id="scene-intro" class="scene backdrop backdrop--ruins" aria-label="Story">
+      <button type="button" class="btn btn--ghost btn--small intro-skip" id="intro-skip" data-i18n="intro.skip">Skip</button>
+      <div class="dialog-box" id="intro-box" role="button" tabindex="0" data-i18n-aria="common.continue">
+        <div class="dialog-box__portrait" id="intro-portrait"></div>
+        <p class="dialog-box__text" id="intro-text" aria-live="polite"></p>
+        <span class="dialog-box__next" aria-hidden="true">▼</span>
+      </div>
     </section>
 
-    <section id="scene-level2" class="scene" style="background-image: url('background2.jpg');">
-        <div class="glass-panel quiz-container">
-            <h2>Lvl 2 QUESTIONS:</h2>
-            <div id="quiz-box">
-                <p id="question-text" class="question">Loading questions...</p>
-                <div id="answers-box" class="answers-grid"></div>
-            </div>
-            <p id="feedback-text"></p>
+    <!-- Quest map -->
+    <section id="scene-map" class="scene backdrop backdrop--coast" aria-labelledby="map-title">
+      <header class="map-hud">
+        <div class="map-hero glass" id="map-hero">
+          <div class="map-hero__face" id="map-hero-face"></div>
+          <div class="map-hero__info">
+            <strong class="map-hero__name" id="map-hero-name"></strong>
+            <span class="map-hero__rank" id="map-hero-rank"></span>
+            <span class="xp-bar" aria-hidden="true"><span class="xp-bar__fill" id="map-xp-fill"></span></span>
+          </div>
         </div>
+        <h1 id="map-title" class="map-title pixel-title" data-i18n="map.title">LOVE QUEST</h1>
+        <div class="map-stats" id="map-stats"></div>
+      </header>
+      <div class="map-world" id="map-world"></div>
+      <nav class="map-dock" id="map-dock"></nav>
     </section>
 
-    <section id="scene-end" class="scene" style="background-image: url('background2.jpg');">
-        <div class="glass-panel center-content end-card">
-            <h1 class="retro-text">HAPPY VALENTINE!</h1>
-            <div class="typewriter-box">
-                <p id="final-letter"></p><span class="cursor">|</span>
-            </div>
-            <button id="replay-btn" class="retro-btn hidden">PLAY AGAIN</button>
-        </div>
+    <!-- Trials -->
+    <section id="scene-game" class="scene backdrop" aria-labelledby="hud-title">
+      <header class="hud" id="hud">
+        <button type="button" class="hud__pause" id="hud-pause" data-i18n-aria="hud.pause" aria-label="Pause">
+          <span aria-hidden="true">❚❚</span>
+        </button>
+        <h2 class="hud__title" id="hud-title"></h2>
+        <div class="hud__stats" id="hud-stats"></div>
+      </header>
+      <main class="game-root" id="game-root"></main>
     </section>
+  </div>
 
-    <script src="script.js"></script>
+  <div id="modal-root"></div>
+  <canvas id="fx-canvas" aria-hidden="true"></canvas>
+  <div id="fx-layer" aria-hidden="true"></div>
+  <div id="flash" aria-hidden="true"></div>
+  <div id="toast-root" aria-live="polite"></div>
+  <div id="wipe" class="wipe" aria-hidden="true"><div class="wipe__hole"></div><div class="wipe__heart"></div></div>
+  <div class="crt" aria-hidden="true"></div>
+
+  <noscript>
+    <div class="noscript">This little game needs JavaScript to tell its love story. ❤️</div>
+  </noscript>
+
+  <script defer src="js/config.js"></script>
+  <script defer src="js/core/utils.js"></script>
+  <script defer src="js/core/i18n.js"></script>
+  <script defer src="js/core/content.js"></script>
+  <script defer src="js/core/storage.js"></script>
+  <script defer src="js/core/audio.js"></script>
+  <script defer src="js/core/sprites.js"></script>
+  <script defer src="js/core/fx.js"></script>
+  <script defer src="js/core/progress.js"></script>
+  <script defer src="js/core/achievements.js"></script>
+  <script defer src="js/core/input.js"></script>
+  <script defer src="js/ui/scenes.js"></script>
+  <script defer src="js/ui/modal.js"></script>
+  <script defer src="js/ui/hud.js"></script>
+  <script defer src="js/ui/menus.js"></script>
+  <script defer src="js/ui/gacha.js"></script>
+  <script defer src="js/ui/results.js"></script>
+  <script defer src="js/ui/screens.js"></script>
+  <script defer src="js/ui/map.js"></script>
+  <script defer src="js/games/catch.js"></script>
+  <script defer src="js/games/memory.js"></script>
+  <script defer src="js/games/archery.js"></script>
+  <script defer src="js/games/quiz.js"></script>
+  <script defer src="js/games/maze.js"></script>
+  <script defer src="js/games/final.js"></script>
+  <script defer src="js/main.js"></script>
 </body>
 </html>
