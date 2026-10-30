@@ -110,6 +110,8 @@ test('letter pieces keep line breaks and still reveal something for very short l
     assert.equal(shortChunks.join(''), short);
     assert.ok(shortChunks.every((chunk) => chunk.trim()), `every piece of "${short}" reveals text`);
     assert.ok(shortChunks.every((chunk) => !/[\uD800-\uDBFF]$/.test(chunk)), 'no piece ends inside an emoji');
+    const pieces = shortChunks.reduce((count, chunk) => count + LQ.utils.graphemes(chunk).length, 0);
+    assert.equal(pieces, LQ.utils.graphemes(short).length, `no piece of "${short}" splits a character`);
   }
 });
 

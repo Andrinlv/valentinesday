@@ -43,6 +43,7 @@ gamepad controls, reduced-motion support and an optional retro TV filter.
    then open <http://localhost:8080>.
 
 The game saves progress in the browser (`localStorage`). *Settings → Reset progress* starts over.
+Fonts come from Google Fonts; without internet the game simply uses the system fonts.
 
 ---
 

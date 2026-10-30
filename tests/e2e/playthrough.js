@@ -220,18 +220,22 @@ async function playQuiz(page, profile) {
       assert.ok(state.index === 1 && !state.locked, 'Alt+digit is left to the browser');
       assert.equal(await page.evaluate(() => LQ.debug.session.paused), false, 'Ctrl+P prints instead of pausing');
 
-      /* A held digit answers once; its auto-repeat must not answer the next question. */
-      const digit = String(questions[index] + 1);
-      await page.keyboard.down(digit);
-      for (let repeat = 0; repeat < 40; repeat++) {
-        await page.waitForTimeout(40);
+      /* A held digit answers once; its auto-repeat must not answer the next question (when there is one). */
+      if (index + 1 < questions.length) {
+        const digit = String(questions[index] + 1);
         await page.keyboard.down(digit);
+        let repeatsOnNext = 10;
+        for (let guard = 0; guard < 150 && repeatsOnNext > 0; guard++) {
+          await page.waitForTimeout(40);
+          await page.keyboard.down(digit); // auto-repeat
+          if (await page.evaluate((next) => LQ.debug.session.instance.debug.state.index === next, index + 1)) repeatsOnNext--;
+        }
+        await page.keyboard.up(digit);
+        const held = await page.evaluate(() => LQ.debug.session.instance.debug.state);
+        assert.equal(held.index, index + 1, 'the held digit answered its question');
+        assert.ok(!held.locked && held.attempt === 0 && held.mistakes === state.mistakes, 'auto-repeat never answers the next question');
+        continue;
       }
-      await page.keyboard.up(digit);
-      const held = await page.evaluate(() => LQ.debug.session.instance.debug.state);
-      assert.equal(held.index, 2, 'the held digit answered its question');
-      assert.equal(held.mistakes, state.mistakes, 'auto-repeat never answers the next question');
-      continue;
     }
     if (index === 0 && profile.touch) {
       await tapElement(page, profile, '#hud-pause');
@@ -601,6 +605,52 @@ async function checkCrossTabSync(page, context) {
   await other.close();
 }
 
+/** Another tab resets the quest while the hero walks to a newly unlocked trial: the walk is cancelled. */
+async function checkWalkMeetsOtherTab(browser) {
+  const context = await browser.newContext({ viewport: { width: 1280, height: 760 } });
+  const page = await context.newPage();
+  const problems = [];
+  page.on('console', (message) => {
+    if (message.type() === 'error' || message.type() === 'warning') problems.push(`${message.type()}: ${message.text()}`);
+  });
+  page.on('pageerror', (error) => problems.push(`pageerror: ${error.message}`));
+  await page.goto(PAGE_URL);
+  await page.click('#start-btn:not([hidden])', { timeout: 10000 });
+  await waitForScene(page, 'select');
+  await page.click('#select-go');
+  await waitForScene(page, 'intro');
+  await page.click('#intro-skip');
+  await waitForScene(page, 'map');
+  await page.click('.modal--level .modal__actions .btn', { timeout: 10000 });
+  await waitForScene(page, 'game');
+  await waitForPhase(page, 'play');
+  await page.evaluate(() => LQ.debug.session.instance.debug.endNow());
+  await page.waitForSelector('.modal--results', { timeout: 20000 });
+  await page.waitForTimeout(1600);
+  await page.click('.modal--results .modal__actions .btn--primary');
+  await waitForScene(page, 'map');
+
+  const other = await context.newPage();
+  await other.goto(`file://${path.join(ROOT, 'README.md')}`);
+  await other.evaluate((key) => localStorage.removeItem(key), await page.evaluate(() => LQ.store.KEY));
+  await other.close();
+  await page.waitForTimeout(3000);
+  const result = await page.evaluate(() => {
+    const avatar = document.querySelector('.map-avatar').getBoundingClientRect();
+    const node = document.querySelector('.map-node').getBoundingClientRect();
+    return {
+      cardOpen: Boolean(document.querySelector('.modal--level')),
+      catchDone: LQ.store.data.levels.catch.completed,
+      offset: Math.abs(avatar.left + avatar.width / 2 - (node.left + node.width / 2))
+    };
+  });
+  assert.equal(result.catchDone, false, 'the reset from the other tab was adopted');
+  assert.equal(result.cardOpen, false, 'no level card opens for a trial that is locked again');
+  assert.ok(result.offset < 4, `the hero stands at the first trial again (${result.offset}px off)`);
+  assert.deepEqual(problems, [], 'no console problems');
+  await context.close();
+}
+
 /** Phones held sideways: the maze stays beside the direction pad and the finale fits on screen. */
 async function checkLandscape(page, profile) {
   await page.setViewportSize({ width: 844, height: 390 });
@@ -675,6 +725,10 @@ async function runProfile(browser, profile) {
   await tapElement(page, profile, '.hero-card:nth-child(3)');
   await page.fill('#hero-name', '💖'.repeat(20));
   assert.equal(Array.from(await page.inputValue('#hero-name')).length, 16, 'names keep at most 16 visible characters');
+  await page.fill('#hero-name', 'ABCDEFGHIJKLMNOP');
+  await page.evaluate(() => document.getElementById('hero-name').setSelectionRange(0, 0));
+  await page.keyboard.type('X');
+  assert.equal(await page.inputValue('#hero-name'), 'ABCDEFGHIJKLMNOP', 'typing into a full name never cuts its end');
   await page.fill('#hero-name', 'Jordan');
   await shot(page, profile, 'select');
   await page.evaluate(() => {
@@ -720,6 +774,7 @@ async function runProfile(browser, profile) {
     } else {
       await checkHiddenDuringTransition(page);
       await checkCrossTabSync(page, context);
+      await checkWalkMeetsOtherTab(browser);
     }
   } catch (err) {
     /* Leave evidence behind: what the player saw and what the game thought. */

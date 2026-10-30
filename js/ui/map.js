@@ -351,7 +351,8 @@
               LQ.fx.sparkle(rect.left + rect.width / 2, rect.top + rect.height / 2, 22);
               LQ.audio.play('unlock');
               scope.timeout(() => {
-                if (!LQ.ui.modal.isOpen()) openLevelCard(levels[target].id);
+                /* Progress may have moved on meanwhile (another tab): then refresh() moved the hero. */
+                if (!LQ.ui.modal.isOpen() && standing === levels[target].id) openLevelCard(levels[target].id);
               }, 650);
             }
           };
@@ -361,7 +362,11 @@
         function refresh() {
           renderHud();
           face.show(LQ.sprites.hero(save.hero.avatar, 'down', 0));
-          if (walk || pendingUnlock) return; // the hero's arrival redraws everything
+          /* A walk to the trial that is still next finishes first; its arrival redraws everything. */
+          if (pendingUnlock && LQ.progress.isUnlocked(pendingUnlock) && !LQ.progress.levelState(pendingUnlock).completed) return;
+          /* Otherwise (another tab reset or advanced the quest) the walk is obsolete. */
+          walk = null;
+          pendingUnlock = null;
           standing = LQ.progress.currentLevelId();
           renderPath();
           updateNodes();
@@ -382,7 +387,9 @@
         layout();
 
         if (shouldWalk) {
-          scope.timeout(() => startWalk(walkFromIndex), 450);
+          scope.timeout(() => {
+            if (pendingUnlock) startWalk(walkFromIndex);
+          }, 450);
         } else if (params.fromIntro) {
           scope.timeout(() => {
             if (!LQ.ui.modal.isOpen()) openLevelCard(LQ.progress.currentLevelId());

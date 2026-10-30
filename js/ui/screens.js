@@ -149,15 +149,20 @@
 
         nameInput.value = save.hero.name || LQ.content.heroName;
 
-        /* Counted in visible characters (an emoji is one), unlike maxlength; never mid-composition (IME). */
+        /*
+         * Like maxlength, but counted in visible characters (an emoji is one): the overflow is dropped from
+         * the text just typed or pasted (it ends at the caret), the rest of the name stays. Never mid-IME.
+         */
         const clampName = (event) => {
           if (event.isComposing) return;
           const value = nameInput.value;
-          const short = U.truncate(value, LQ.store.NAME_MAX);
-          if (short === value) return;
-          const caret = Math.min(nameInput.selectionStart === null ? short.length : nameInput.selectionStart, short.length);
-          nameInput.value = short;
-          nameInput.setSelectionRange(caret, caret);
+          const extra = U.graphemes(value).length - LQ.store.NAME_MAX;
+          if (extra <= 0) return;
+          const caret = nameInput.selectionEnd === null ? value.length : nameInput.selectionEnd;
+          const head = U.graphemes(value.slice(0, caret));
+          const kept = head.slice(0, Math.max(0, head.length - extra)).join('');
+          nameInput.value = U.truncate(kept + value.slice(caret), LQ.store.NAME_MAX);
+          nameInput.setSelectionRange(kept.length, kept.length);
         };
         scope.on(nameInput, 'input', clampName);
         scope.on(nameInput, 'compositionend', clampName);
