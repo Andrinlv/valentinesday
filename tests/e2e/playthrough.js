@@ -605,7 +605,11 @@ async function checkCrossTabSync(page, context) {
   await other.close();
 }
 
-/** Another tab resets the quest while the hero walks to a newly unlocked trial: the walk is cancelled. */
+/**
+ * Another tab changes the quest around the hero's walk to a newly unlocked trial: it resets the quest
+ * before the walk starts, while walking and right after arriving, or it already finished the next trial.
+ * The hero must never walk to, unlock or open a trial that is no longer next.
+ */
 async function checkWalkMeetsOtherTab(browser) {
   const context = await browser.newContext({ viewport: { width: 1280, height: 760 } });
   const page = await context.newPage();
@@ -621,32 +625,65 @@ async function checkWalkMeetsOtherTab(browser) {
   await waitForScene(page, 'intro');
   await page.click('#intro-skip');
   await waitForScene(page, 'map');
-  await page.click('.modal--level .modal__actions .btn', { timeout: 10000 });
-  await waitForScene(page, 'game');
-  await waitForPhase(page, 'play');
-  await page.evaluate(() => LQ.debug.session.instance.debug.endNow());
-  await page.waitForSelector('.modal--results', { timeout: 20000 });
-  await page.waitForTimeout(1600);
-  await page.click('.modal--results .modal__actions .btn--primary');
-  await waitForScene(page, 'map');
+  await page.waitForSelector('.modal--level', { timeout: 10000 });
+  await page.keyboard.press('Escape');
 
   const other = await context.newPage();
   await other.goto(`file://${path.join(ROOT, 'README.md')}`);
-  await other.evaluate((key) => localStorage.removeItem(key), await page.evaluate(() => LQ.store.KEY));
-  await other.close();
-  await page.waitForTimeout(3000);
-  const result = await page.evaluate(() => {
-    const avatar = document.querySelector('.map-avatar').getBoundingClientRect();
-    const node = document.querySelector('.map-node').getBoundingClientRect();
-    return {
-      cardOpen: Boolean(document.querySelector('.modal--level')),
-      catchDone: LQ.store.data.levels.catch.completed,
-      offset: Math.abs(avatar.left + avatar.width / 2 - (node.left + node.width / 2))
+  const key = await page.evaluate(() => LQ.store.KEY);
+  await page.evaluate(() => {
+    /* Horizontal distance between the hero and a trial node. */
+    window.__heroOffset = (index = 0) => {
+      const avatar = document.querySelector('.map-avatar').getBoundingClientRect();
+      const node = document.querySelectorAll('.map-node')[index].getBoundingClientRect();
+      return Math.abs(avatar.left + avatar.width / 2 - (node.left + node.width / 2));
     };
   });
-  assert.equal(result.catchDone, false, 'the reset from the other tab was adopted');
-  assert.equal(result.cardOpen, false, 'no level card opens for a trial that is locked again');
-  assert.ok(result.offset < 4, `the hero stands at the first trial again (${result.offset}px off)`);
+
+  for (const moment of ['before', 'during', 'after', 'finishedElsewhere']) {
+    await page.waitForFunction(() => LQ.ui.scenes.current === 'map' && !LQ.ui.scenes.transitioning && !LQ.ui.modal.isOpen());
+    await page.evaluate(() => LQ.app.startLevel('catch'));
+    await waitForScene(page, 'game');
+    await waitForPhase(page, 'play');
+    await page.evaluate(() => LQ.debug.session.instance.debug.endNow());
+    await page.waitForSelector('.modal--results', { timeout: 20000 });
+    await page.waitForTimeout(1600);
+    if (moment === 'finishedElsewhere') {
+      await other.evaluate((storageKey) => {
+        const save = JSON.parse(localStorage.getItem(storageKey));
+        save.levels.memory = { completed: true, stars: 1, best: 100, plays: 1 };
+        localStorage.setItem(storageKey, JSON.stringify(save));
+      }, key);
+      await page.waitForFunction(() => LQ.store.data.levels.memory.completed);
+      await page.click('.modal--results .modal__actions .btn--primary');
+      await waitForScene(page, 'map');
+      await page.waitForTimeout(3000);
+      const settled = await page.evaluate(() => ({
+        cardOpen: Boolean(document.querySelector('.modal--level')),
+        offset: window.__heroOffset(LQ.progress.levelIndex(LQ.progress.currentLevelId())),
+        current: LQ.progress.currentLevelId()
+      }));
+      assert.equal(settled.current, 'archery');
+      assert.equal(settled.cardOpen, false, 'no walk or card for a trial another tab already finished');
+      assert.ok(settled.offset < 4, `the hero stands at the current trial (${settled.offset}px off)`);
+      continue;
+    }
+    await page.click('.modal--results .modal__actions .btn--primary');
+    if (moment === 'before') await page.waitForFunction(() => LQ.ui.scenes.current === 'map');
+    else if (moment === 'during') await page.waitForFunction(() => window.__heroOffset() > 10, null, { timeout: 10000 });
+    else await page.waitForSelector('.map-node.is-unlocking', { timeout: 10000 });
+    await other.evaluate((storageKey) => localStorage.removeItem(storageKey), key);
+    await page.waitForTimeout(moment === 'after' ? 1200 : 3000);
+    const result = await page.evaluate(() => ({
+      cardOpen: Boolean(document.querySelector('.modal--level')),
+      catchDone: LQ.store.data.levels.catch.completed,
+      offset: window.__heroOffset()
+    }));
+    assert.equal(result.catchDone, false, `${moment}: the reset from the other tab was adopted`);
+    assert.equal(result.cardOpen, false, `${moment}: no level card opens for a trial that is locked again`);
+    assert.ok(result.offset < 4, `${moment}: the hero stands at the first trial again (${result.offset}px off)`);
+  }
+  await other.close();
   assert.deepEqual(problems, [], 'no console problems');
   await context.close();
 }
@@ -729,6 +766,18 @@ async function runProfile(browser, profile) {
   await page.evaluate(() => document.getElementById('hero-name').setSelectionRange(0, 0));
   await page.keyboard.type('X');
   assert.equal(await page.inputValue('#hero-name'), 'ABCDEFGHIJKLMNOP', 'typing into a full name never cuts its end');
+  if (!profile.touch) {
+    /* IME text committed after the caret moved away (as on Android) is still cut where it was typed. */
+    await page.fill('#hero-name', 'ABCDEFGHIJKLMNO');
+    await page.evaluate(() => document.getElementById('hero-name').setSelectionRange(15, 15));
+    const cdp = await page.context().newCDPSession(page);
+    await cdp.send('Input.imeSetComposition', { text: 'xyz', selectionStart: 3, selectionEnd: 3 });
+    const field = await page.locator('#hero-name').boundingBox();
+    await page.mouse.click(field.x + 30, field.y + field.height / 2);
+    await page.evaluate(() => document.getElementById('hero-name').blur());
+    await cdp.detach();
+    assert.equal(await page.inputValue('#hero-name'), 'ABCDEFGHIJKLMNOx', 'an IME commit keeps the start of the name');
+  }
   await page.fill('#hero-name', 'Jordan');
   await shot(page, profile, 'select');
   await page.evaluate(() => {

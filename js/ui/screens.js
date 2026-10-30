@@ -151,18 +151,29 @@
 
         /*
          * Like maxlength, but counted in visible characters (an emoji is one): the overflow is dropped from
-         * the text just typed or pasted (it ends at the caret), the rest of the name stays. Never mid-IME.
+         * the text just typed or pasted, the rest of the name stays. Nothing is cut while an IME composes;
+         * its commit is cut where the composed text ends, because on Android the caret may have moved away.
          */
+        let composedEnd = null;
         const clampName = (event) => {
-          if (event.isComposing) return;
+          if (event.isComposing) {
+            composedEnd = nameInput.selectionEnd;
+            return;
+          }
+          const tracked = event.type === 'compositionend' ? composedEnd : null;
+          composedEnd = null;
           const value = nameInput.value;
           const extra = U.graphemes(value).length - LQ.store.NAME_MAX;
           if (extra <= 0) return;
-          const caret = nameInput.selectionEnd === null ? value.length : nameInput.selectionEnd;
-          const head = U.graphemes(value.slice(0, caret));
+          const live = nameInput.selectionEnd === null ? value.length : nameInput.selectionEnd;
+          const cut = Math.min(value.length, tracked === null ? live : tracked);
+          const head = U.graphemes(value.slice(0, cut));
           const kept = head.slice(0, Math.max(0, head.length - extra)).join('');
-          nameInput.value = U.truncate(kept + value.slice(caret), LQ.store.NAME_MAX);
-          nameInput.setSelectionRange(kept.length, kept.length);
+          const next = U.truncate(kept + value.slice(cut), LQ.store.NAME_MAX);
+          /* The caret stays where it was, shifted left by whatever was removed before it. */
+          const caret = Math.min(next.length, live <= kept.length ? live : Math.max(kept.length, live - (cut - kept.length)));
+          nameInput.value = next;
+          nameInput.setSelectionRange(caret, caret);
         };
         scope.on(nameInput, 'input', clampName);
         scope.on(nameInput, 'compositionend', clampName);

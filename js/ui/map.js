@@ -143,11 +143,12 @@
         let standing = LQ.progress.currentLevelId();
         let pendingUnlock = null;
         const walkFromIndex = params.walkFrom ? LQ.progress.levelIndex(params.walkFrom) : -1;
-        const shouldWalk = walkFromIndex >= 0 && walkFromIndex < levels.length - 1 &&
-          LQ.progress.isUnlocked(levels[walkFromIndex + 1].id);
+        const nextId = walkFromIndex >= 0 && walkFromIndex < levels.length - 1 ? levels[walkFromIndex + 1].id : null;
+        /* Only a trial that is still next is worth the walk (another tab may have finished it already). */
+        const shouldWalk = nextId !== null && LQ.progress.isUnlocked(nextId) && !LQ.progress.levelState(nextId).completed;
         if (shouldWalk) {
           standing = params.walkFrom;
-          pendingUnlock = levels[walkFromIndex + 1].id;
+          pendingUnlock = nextId;
         }
 
         world.textContent = '';
