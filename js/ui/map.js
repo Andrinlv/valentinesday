@@ -103,7 +103,7 @@
       })
     ]);
 
-    LQ.ui.modal.open({
+    return LQ.ui.modal.open({
       title: t(`level.${levelId}.title`),
       content,
       className: 'modal--level',
@@ -138,6 +138,7 @@
         let walk = null; // { road, length, distance, target, onDone }
         let idleBob = -1;
         let idleOffset = 0;
+        let levelCard = null; // { levelId, dialog } of the last level card this map opened
 
         /* After a first clear the hero starts at the finished trial and walks to the new one. */
         let standing = LQ.progress.currentLevelId();
@@ -222,6 +223,10 @@
           entry.button.setAttribute('aria-label', badgeText ? `${text} (${badgeText})` : text);
         }
 
+        function showLevelCard(levelId) {
+          levelCard = { levelId, dialog: openLevelCard(levelId) };
+        }
+
         function nodeState(levelId) {
           if (!LQ.progress.isUnlocked(levelId) || levelId === pendingUnlock) return 'locked';
           if (LQ.progress.levelState(levelId).completed) return 'done';
@@ -257,7 +262,7 @@
                 return;
               }
               LQ.audio.play('select');
-              openLevelCard(level.id);
+              showLevelCard(level.id);
             });
             /* Lets the current-trial pulse take over again once the unlock pop has played. */
             scope.on(node, 'animationend', (event) => {
@@ -353,7 +358,7 @@
               LQ.audio.play('unlock');
               scope.timeout(() => {
                 /* Progress may have moved on meanwhile (another tab): then refresh() moved the hero. */
-                if (!LQ.ui.modal.isOpen() && standing === levels[target].id) openLevelCard(levels[target].id);
+                if (!LQ.ui.modal.isOpen() && standing === levels[target].id) showLevelCard(levels[target].id);
               }, 650);
             }
           };
@@ -363,6 +368,8 @@
         function refresh() {
           renderHud();
           face.show(LQ.sprites.hero(save.hero.avatar, 'down', 0));
+          /* A card whose trial another tab locked again would only lead to "not available". */
+          if (levelCard && levelCard.dialog.isOpen && !LQ.progress.isUnlocked(levelCard.levelId)) levelCard.dialog.close('locked');
           /* A walk to the trial that is still next finishes first; its arrival redraws everything. */
           if (pendingUnlock && LQ.progress.isUnlocked(pendingUnlock) && !LQ.progress.levelState(pendingUnlock).completed) return;
           /* Otherwise (another tab reset or advanced the quest) the walk is obsolete. */
@@ -393,7 +400,7 @@
           }, 450);
         } else if (params.fromIntro) {
           scope.timeout(() => {
-            if (!LQ.ui.modal.isOpen()) openLevelCard(LQ.progress.currentLevelId());
+            if (!LQ.ui.modal.isOpen()) showLevelCard(LQ.progress.currentLevelId());
           }, 600);
         } else if (params.welcome) {
           LQ.fx.toast({ icon: '🏰', title: t('map.welcomeBack', { name: LQ.app.heroName() }) });

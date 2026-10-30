@@ -683,6 +683,13 @@ async function checkWalkMeetsOtherTab(browser) {
     assert.equal(result.cardOpen, false, `${moment}: no level card opens for a trial that is locked again`);
     assert.ok(result.offset < 4, `${moment}: the hero stands at the first trial again (${result.offset}px off)`);
   }
+
+  /* An open level card whose trial another tab locks again closes itself. */
+  await page.waitForFunction(() => LQ.ui.scenes.current === 'map' && !LQ.ui.scenes.transitioning && !LQ.ui.modal.isOpen());
+  await page.click('.map-node:nth-child(3)');
+  await page.waitForSelector('.modal--level');
+  await other.evaluate((storageKey) => localStorage.removeItem(storageKey), key);
+  await page.waitForFunction(() => !document.querySelector('.modal--level'), null, { timeout: 3000 });
   await other.close();
   assert.deepEqual(problems, [], 'no console problems');
   await context.close();
